@@ -1,0 +1,55 @@
+---
+title: "Code Testing"
+author: "Aye Nyein Thu"
+date: "2025-03-23"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r load packages, message=FALSE, warning=FALSE}
+# Load required packages
+library(readxl)
+library(openxlsx)
+library(writexl)
+library(dplyr)
+library(lubridate)
+library(ggplot2)
+library(forecast)  
+library(Kendall)
+library(tseries)
+library(outliers)
+library(tidyverse)
+library(smooth)
+library(kableExtra)
+
+# Check working directory
+getwd()
+```
+
+
+```{r import data set, results='hide', warning=FALSE, message=FALSE}
+# Import the data set
+Electricity <- read_excel(
+  path = "./Data/Raw/load.xlsx", sheet = "Sheet1", col_names = TRUE
+)
+
+# Check the N/A 
+sum(is.na(Electricity))
+
+# Format the data set 
+Electricity_Processed  <- Electricity %>%
+  mutate(date = ymd(date)) %>%
+  mutate(demand = rowMeans(select(., h1:h24), na.rm = TRUE)) %>% 
+  select(date, demand)
+
+# Save in the processed folder 
+write.xlsx(Electricity_Processed, "Data/Processed/Electricity_Processed.xlsx")
+
+
+```
+
