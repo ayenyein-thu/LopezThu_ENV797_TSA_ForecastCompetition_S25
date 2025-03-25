@@ -19,7 +19,8 @@ library(writexl)
 library(dplyr)
 library(lubridate)
 library(ggplot2)
-library(forecast)  
+library(forecast) 
+library(cowplot)
 library(Kendall)
 library(tseries)
 library(outliers)
@@ -50,6 +51,40 @@ Electricity_Processed  <- Electricity %>%
 # Save in the processed folder 
 write.xlsx(Electricity_Processed, "Data/Processed/Electricity_Processed.xlsx")
 
-
+# Check the data set 
+summary(Electricity_Processed)
 ```
 
+```{r transform data into time series}
+# Transform into multiple time series object
+ts_Electricity_Processed <- msts(Electricity_Processed$demand, 
+                                 seasonal.periods = c(30,365))
+
+# Plot
+plot_grid(
+autoplot(ts_Electricity_Processed),
+autoplot(Acf(ts_Electricity_Processed, lag.max=40, plot=FALSE)),
+autoplot(Pacf(ts_Electricity_Processed, lag.max=40, plot=FALSE)),
+nrow=1
+)
+
+# Example: Generate some synthetic daily data for 365 days
+set.seed(123)
+daily_data <- rnorm(365)  # Simulated random daily data
+
+# Create a time series object with multiple seasonalities (yearly and weekly)
+ts_data <- msts(daily_data, seasonal.periods = c(7, 365))
+
+# View the time series object
+print(ts_data)
+plot(ts_data)
+Acf(ts_data, lag.max=40)
+
+Acf(ts_Electricity_Processed, lag.max=40, plot=TRUE)
+```
+
+```{r decompose}
+# Decompose the time series
+decomp_Electricty_Process <- decompose(ts_Electricity_Processed)
+plot(decomp_Electricty_Process)
+```
