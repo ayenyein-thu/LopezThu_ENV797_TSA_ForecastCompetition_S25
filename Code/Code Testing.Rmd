@@ -19,6 +19,7 @@ library(writexl)
 library(dplyr)
 library(lubridate)
 library(ggplot2)
+library(cowplot)
 library(forecast)  
 library(Kendall)
 library(tseries)
@@ -41,6 +42,18 @@ Electricity <- read_excel(
 # Check the N/A 
 sum(is.na(Electricity))
 
+# Format the hourly data set
+Hourly_Electricity <- Electricity %>%
+  pivot_longer(cols = starts_with("h"), 
+               names_to = "hour", 
+               values_to = "Hourly_demand") %>%
+  mutate(Hour = as.numeric(sub("h", "", hour))) %>%
+  mutate(Date = ymd(date)) %>% 
+  mutate(Year = year(date), 
+         Month = month(Date), 
+         Day = day(Date)) %>% 
+  select(Date, Year, Month, Day, Hour, Hourly_demand)
+ 
 # Format the data set 
 Electricity_Processed  <- Electricity %>%
   mutate(date = ymd(date)) %>%
@@ -50,6 +63,25 @@ Electricity_Processed  <- Electricity %>%
 # Save in the processed folder 
 write.xlsx(Electricity_Processed, "Data/Processed/Electricity_Processed.xlsx")
 
+```
 
+```{r transform data into time series}
+# Transform into multiple time series object
+ts_Electricity_Processed <- msts(Electricity_Processed$demand, 
+                                 seasonal.periods = c(30,365))
+
+# Plot
+plot_grid(
+autoplot(ts_Electricity_Processed),
+autoplot(Acf(ts_Electricity_Processed, lag.max=40, plot=FALSE)),
+autoplot(Pacf(ts_Electricity_Processed, lag.max=40, plot=FALSE)),
+nrow=1
+)
+```
+
+```{r decompose}
+# Decompose the time series
+decomp_Electricty_Process <- decompose(ts_Electricity_Processed)
+plot(decomp_Electricty_Process)
 ```
 
