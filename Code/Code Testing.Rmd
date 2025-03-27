@@ -19,8 +19,8 @@ library(writexl)
 library(dplyr)
 library(lubridate)
 library(ggplot2)
-library(forecast) 
 library(cowplot)
+library(forecast)  
 library(Kendall)
 library(tseries)
 library(outliers)
@@ -33,58 +33,192 @@ getwd()
 ```
 
 
-```{r import data set, results='hide', warning=FALSE, message=FALSE}
+```{r import demand data set, results='hide', warning=FALSE, message=FALSE}
+## Raw Data: Electricity Demand 
 # Import the data set
-Electricity <- read_excel(
+Demand <- read_excel(
   path = "./Data/Raw/load.xlsx", sheet = "Sheet1", col_names = TRUE
 )
 
-# Check the N/A 
-sum(is.na(Electricity))
+# Format the hourly data set
+Hourly_Demand <- Demand %>%
+  pivot_longer(cols = starts_with("h"), 
+               names_to = "hour", 
+               values_to = "Hourly_demand") %>%
+  mutate(Hour = as.numeric(sub("h", "", hour))) %>%
+  mutate(Date = ymd(date)) %>% 
+  mutate(Year = year(date), 
+         Month = month(Date), 
+         Day = day(Date)) %>% 
+  select(Date, Year, Month, Day, Hour, Hourly_demand)
 
-# Format the data set 
-Electricity_Processed  <- Electricity %>%
-  mutate(date = ymd(date)) %>%
-  mutate(demand = rowMeans(select(., h1:h24), na.rm = TRUE)) %>% 
-  select(date, demand)
+summary(Hourly_Demand) # Note the 6 missing values
+ 
+# Format the daily data set 
+Daily_Demand  <- Hourly_Demand %>%
+  filter( !is.na(Hourly_demand)) %>% 
+  group_by(Date,Year,Month,Day) %>% 
+  summarise(Daily_demand = mean(Hourly_demand)) 
 
-# Save in the processed folder 
-write.xlsx(Electricity_Processed, "Data/Processed/Electricity_Processed.xlsx")
+## Raw Data: Relative Humidity 
+# Import the data set
+Humidity <- read_excel(
+  path = "./Data/Raw/relative_humidity.xlsx", sheet = "Sheet1", col_names = TRUE
+)
 
-# Check the data set 
-summary(Electricity_Processed)
+# Format the hourly data set
+Hourly_Humidity <- Humidity %>%
+  mutate(Date = ymd(date), 
+         Hour = hr, 
+         Hourly_humidity = rowMeans(select(.,rh_ws1:rh_ws28), na.rm = TRUE)) %>% 
+  select(Date, Hour, Hourly_humidity)
+
+# Format the daily data set 
+Daily_Humidity  <- Hourly_Humidity %>%
+  group_by(Date) %>% 
+  summarise(Daily_humidity = mean(Hourly_humidity)) 
+
+## Raw Data: Temperature 
+
+# Import the data set
+Temperature <- read_excel(
+  path = "./Data/Raw/temperature.xlsx", sheet = "Sheet1", col_names = TRUE
+)
+
+# Format the hourly data set
+Hourly_Temperature <- Temperature %>%
+  mutate(Date = ymd(date), 
+         Hour = hr, 
+         Hourly_temp = rowMeans(select(.,t_ws1:t_ws28), na.rm = TRUE)) %>% 
+  select(Date, Hour, Hourly_temp)
+
+# Format the daily data set 
+Daily_Temperature  <- Hourly_Temperature %>%
+  group_by(Date) %>% 
+  summarise(Daily_temp = mean(Hourly_temp)) 
+```
+
+```{r import demand data set, results='hide', warning=FALSE, message=FALSE}
+## Raw Data: Electricity Demand 
+# Import the data set
+Demand <- read_excel(
+  path = "./Data/Raw/load.xlsx", sheet = "Sheet1", col_names = TRUE
+)
+
+# Format the hourly data set
+Hourly_Demand <- Demand %>%
+  pivot_longer(cols = starts_with("h"), 
+               names_to = "hour", 
+               values_to = "Hourly_demand") %>%
+  mutate(Hour = as.numeric(sub("h", "", hour))) %>%
+  mutate(Date = ymd(date)) %>% 
+  select(Date, Hour, Hourly_demand)
+
+summary(Hourly_Demand) # Note the 6 missing values
+ 
+# Format the daily data set 
+Daily_Demand  <- Hourly_Demand %>%
+  filter( !is.na(Hourly_demand)) %>% 
+  group_by(Date) %>% 
+  summarise(Daily_demand = mean(Hourly_demand)) 
+
+## Raw Data: Relative Humidity 
+# Import the data set
+Humidity <- read_excel(
+  path = "./Data/Raw/relative_humidity.xlsx", sheet = "Sheet1", col_names = TRUE
+)
+
+# Format the hourly data set
+Hourly_Humidity <- Humidity %>%
+  mutate(Date = ymd(date), 
+         Hour = hr, 
+         Hourly_humidity = rowMeans(select(.,rh_ws1:rh_ws28), na.rm = TRUE)) %>% 
+  select(Date, Hour, Hourly_humidity)
+
+# Format the daily data set 
+Daily_Humidity  <- Hourly_Humidity %>%
+  group_by(Date) %>% 
+  summarise(Daily_humidity = mean(Hourly_humidity)) 
+
+## Raw Data: Temperature 
+# Import the data set
+Temperature <- read_excel(
+  path = "./Data/Raw/temperature.xlsx", sheet = "Sheet1", col_names = TRUE
+)
+
+# Format the hourly data set
+Hourly_Temperature <- Temperature %>%
+  mutate(Date = ymd(date), 
+         Hour = hr, 
+         Hourly_temp = rowMeans(select(.,t_ws1:t_ws28), na.rm = TRUE)) %>% 
+  select(Date, Hour, Hourly_temp)
+
+# Format the daily data set 
+Daily_Temperature  <- Hourly_Temperature %>%
+  group_by(Date) %>% 
+  summarise(Daily_temp = mean(Hourly_temp)) 
+```
+
+```{r combing data set, results='hide', warning=FALSE, message=FALSE}
+# Combine the hourly data set
+Hourly_Electricity <- Hourly_Demand %>% 
+  left_join(Hourly_Humidity, by = c("Date", "Hour")) %>% 
+  left_join(Hourly_Temperature, by = c("Date", "Hour"))
+
+summary(Hourly_Electricity) # Note the 6 missing values
+  
+# Combine the daily data set
+Daily_Electricity <- Daily_Demand %>% 
+  left_join(Daily_Humidity, by = "Date")  %>% 
+  left_join(Daily_Temperature, by = "Date")
+
+# Save the processed data sets in the folder 
+write.xlsx(Hourly_Electricity, "Data/Processed/Hourly_Electricity.xlsx") 
+write.xlsx(Daily_Electricity, "Data/Processed/Daily_Electricity.xlsx")
 ```
 
 ```{r transform data into time series}
-# Transform into multiple time series object
-ts_Electricity_Processed <- msts(Electricity_Processed$demand, 
-                                 seasonal.periods = c(30,365))
-
-# Plot
-plot_grid(
-autoplot(ts_Electricity_Processed),
-autoplot(Acf(ts_Electricity_Processed, lag.max=40, plot=FALSE)),
-autoplot(Pacf(ts_Electricity_Processed, lag.max=40, plot=FALSE)),
-nrow=1
-)
-
-# Example: Generate some synthetic daily data for 365 days
-set.seed(123)
-daily_data <- rnorm(365)  # Simulated random daily data
-
-# Create a time series object with multiple seasonalities (yearly and weekly)
-ts_data <- msts(daily_data, seasonal.periods = c(7, 365))
-
-# View the time series object
-print(ts_data)
-plot(ts_data)
-Acf(ts_data, lag.max=40)
-
-Acf(ts_Electricity_Processed, lag.max=40, plot=TRUE)
+# Plot 
+ggplot(Daily_Electricity, aes(x=Date)) +
+  geom_line(aes(y=Daily_demand), color="blue") 
 ```
 
-```{r decompose}
+```{r transform into time series and decompose, message=FALSE, warning=FALSE}
+# Daily Data Set
+# Transform the daily data set into multiple time series
+ts_Daily_Electricity <- msts(Daily_Electricity$Daily_demand, 
+                             seasonal.periods = c(7, 365.25),
+                             start = c(2005, 1, 1))
+
 # Decompose the time series
-decomp_Electricty_Process <- decompose(ts_Electricity_Processed)
-plot(decomp_Electricty_Process)
+ts_Daily_Electricity_decompose <- mstl(ts_Daily_Electricity)
+autoplot(ts_Daily_Electricity_decompose)
+```
+
+```{r trainig and testing, message=FALSE, warning=FALSE}
+#create a subset for training purpose
+n_for = 365
+ts_Daily_Electricity_train <- subset(ts_Daily_Electricity,
+                                   end = length(ts_Daily_Electricity)-n_for)
+
+#create a subset for testing purpose
+ts_Daily_Electricity_test <- subset(ts_Daily_Electricity,
+                                   start = length(ts_Daily_Electricity)-n_for)
+
+autoplot(ts_Daily_Electricity_train)
+autoplot(ts_Daily_Electricity_test)
+```
+
+### Model 1: STL + ETS
+```{r Model 1: STL + ETS}
+#Fit and forecast STL + ETS model to data
+ETS_fit <-  stlf(ts_Daily_Electricity_train, h = 365)
+
+#Plot foresting results
+autoplot(ETS_fit) + ylab("Daily Electricity Demand")
+
+#Plot model + observed data
+autoplot(ts_Daily_Electricity) +
+  autolayer(ETS_fit, series="STL + ETS",PI=FALSE) +
+  ylab("Daily Electricity Demand")
 ```
