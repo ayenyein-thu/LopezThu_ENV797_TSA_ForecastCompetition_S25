@@ -186,7 +186,7 @@ autoplot(ts_Daily_Electricity_test)
 ```
 
 ### Model 1: STL + ETS
-```{r Daily Model 1: STL + ETS}
+```{r Daily Model 1: STL + ETS, warning=FALSE, message=FALSE}
 # Fit and forecast STL + ETS model to data
 ETS_fit <-  stlf(ts_Daily_Electricity_train, h = 365)
 
@@ -242,3 +242,4 @@ autoplot(ts_Daily_Electricity[,1]) +
   ylab("Total Electricity Demand") 
 ```
 
+### Model 4: 
