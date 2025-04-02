@@ -229,7 +229,7 @@ autoplot(ts_Daily_Electricity[,1]) +
 ```{r Daily Model 3: TBATS, message=FALSE, warning=FALSE}
 # Fit TBATS Model
 TBATS_fit <- tbats(ts_Daily_Electricity_train)
-
+      
 TBATS_for <- forecast(TBATS_fit, h=365)
 
 #Plot foresting results
@@ -316,7 +316,98 @@ autoplot(ts_Daily_Electricity_test) +
 # Create the time series to retain full data set
 ts_Daily_Electricity_fulltrain <- ts_Daily_Electricity[,1]
 
-# Fit NN Model
+## Fit and Forecast the full trained STL+ETS Model 
+ETS_fit_fulltrain <- stlf(ts_Daily_Electricity_fulltrain, h = 59)
+
+# Plot foresting results
+autoplot(ETS_fit_fulltrain) +
+  ylab("Total Electricity Demand for Jan to Feb 2011") 
+
+# Plot model + observed data
+autoplot(ts_Daily_Electricity[,1]) +
+  autolayer(ETS_fit_fulltrain, series="STL + ETS Model Full Train",PI=FALSE)+
+  ylab("Total Electricity Demand for Jan to Feb 2011") 
+
+# Save forecast values in the data file
+ETS_forecast <- as.data.frame(ETS_fit_fulltrain$mean) %>%
+  mutate(date = seq.Date(from = as.Date("2011-01-01"), 
+                         by = "day", 
+                         length.out = 59)) %>%
+  rename(load = 1) %>%
+  select(date, load)
+
+# Save forecast in the output folder 
+write.xlsx(ETS_forecast, "Output/ETS_forecast.xlsx")
+```
+
+```{r daily forecast for 2011, message=FALSE, warning=FALSE}
+## Fit and Forecast the full trained ARIMA + Fourier terms Model 
+ARIMA_Four_fit_fulltrain <- auto.arima(ts_Daily_Electricity_fulltrain, 
+                                       seasonal=FALSE, 
+                                       lambda=0,
+                                       xreg=fourier(ts_Daily_Electricity_fulltrain,
+                                                    K=c(2,3)) 
+                                       )
+
+ARIMA_Four_for_fulltrain <- forecast(ARIMA_Four_fit_fulltrain,
+                                     xreg=fourier(ts_Daily_Electricity_fulltrain,
+                                                  K=c(2,3),
+                                                  h=59),
+                                     h=59
+                                     )
+
+# Plot foresting results
+autoplot(ARIMA_Four_for_fulltrain) +
+  ylab("Total Electricity Demand for Jan to Feb 2011") 
+
+# Plot model + observed data
+autoplot(ts_Daily_Electricity[,1]) +
+  autolayer(ARIMA_Four_for_fulltrain, series="ARIMA + Fourier Model Full Train",PI=FALSE)+
+  ylab("Total Electricity Demand for Jan to Feb 2011") 
+
+# Save forecast values in the data file
+ARIMA_Four_forecast <- as.data.frame(ARIMA_Four_for_fulltrain$mean) %>%
+  mutate(date = seq.Date(from = as.Date("2011-01-01"), 
+                         by = "day", 
+                         length.out = 59)) %>%
+  rename(load = 1) %>%
+  select(date, load)
+
+# Save forecast in the output folder
+write.xlsx(ARIMA_Four_forecast, "Output/ARIMA_Four_forecast.xlsx")
+
+```
+
+``` {r daily forecast for 2011, message=FALSE, warning=FALSE}
+## Fit and Forecast the full trained TBATS Model 
+TBATS_fit_fulltrain <- tbats(ts_Daily_Electricity_fulltrain)
+
+TBATS_for_fulltrain <- forecast(TBATS_fit_fulltrain, h=59)
+  
+# Plot foresting results
+autoplot(TBATS_for_fulltrain) +
+  ylab("Total Electricity Demand for Jan to Feb 2011") 
+
+# Plot model + observed data
+autoplot(ts_Daily_Electricity[,1]) +
+  autolayer(TBATS_for_fulltrain, series="TBATS Model Full Train",PI=FALSE)+
+  ylab("Total Electricity Demand for Jan to Feb 2011") 
+
+# Save forecast values in the data file
+TBATS_Four_forecast <- as.data.frame(TBATS_for_fulltrain$mean) %>%
+  mutate(date = seq.Date(from = as.Date("2011-01-01"), 
+                         by = "day", 
+                         length.out = 59)) %>%
+  rename(load = 1) %>%
+  select(date, load)
+
+# Save forecast in the output folder
+write.xlsx(TBATS_Four_forecast, "Output/TBATS_Four_forecast.xlsx")
+
+```
+
+```{r daily forecast for 2011, message=FALSE, warning=FALSE}
+## Fit and Forecast the full trained Neural Model
 NN_fit_fulltrain <- nnetar(ts_Daily_Electricity_fulltrain,
                  p=1,
                  P=0,
@@ -324,7 +415,6 @@ NN_fit_fulltrain <- nnetar(ts_Daily_Electricity_fulltrain,
 
 NN_for_fulltrain <- forecast(NN_fit_fulltrain, h=59,xreg=fourier(ts_Daily_Electricity_fulltrain, 
                                           K=c(2,3),h=59))
-
 
 # Plot foresting results
 autoplot(NN_for_fulltrain) +
@@ -343,5 +433,7 @@ NN_forecast <- as.data.frame(NN_for_fulltrain$mean) %>%
   rename(load = 1) %>%
   select(date, load)
 
-#write.xlsx(NN_forecast, "Output/NN_forecast.xlsx")
+# Save forecast in the output folder 
+write.xlsx(ETS_forecast, "Output/ETS_forecast.xlsx")
 ```
+
