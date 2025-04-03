@@ -1,6 +1,6 @@
 ---
-title: "Code Testing"
-author: "Aye Nyein Thu"
+title: "Forecasting Competition_Part II"
+author: "Alex Lopez and Aye Nyein Thu"
 date: "2025-03-23"
 output: html_document
 editor_options: 
@@ -11,6 +11,7 @@ editor_options:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+## Loading packages
 ```{r load packages, message=FALSE, warning=FALSE}
 # Load required packages
 library(readxl)
@@ -32,6 +33,7 @@ library(kableExtra)
 getwd()
 ```
 
+## Importing data sets
 ```{r import demand data set, results='hide', warning=FALSE, message=FALSE}
 ## Raw Data: Electricity Demand 
 # Import the data set
@@ -93,7 +95,8 @@ Daily_Temperature  <- Hourly_Temperature %>%
   summarise(Daily_temp = mean(Hourly_temp)) 
 ```
 
-```{r combing data set, results='hide', warning=FALSE, message=FALSE}
+## Data Wrangling 
+```{r combining data set, results='hide', warning=FALSE, message=FALSE}
 # Combine the hourly data set
 Hourly_Electricity <- Hourly_Demand %>% 
   left_join(Hourly_Humidity, by = c("Date", "Hour")) %>% 
@@ -111,6 +114,7 @@ Daily_Electricity <- Daily_Demand %>%
 #write.xlsx(Daily_Electricity, "Data/Processed/Daily_Electricity.xlsx")
 ```
 
+## Initial Data Exploration and Transforming into Time Series 
 ```{r initial plots, message=FALSE, warning=FALSE}}
 # Plot 
 ggplot(Hourly_Electricity, aes(x=Date)) +
@@ -141,15 +145,9 @@ MV_Hourly_Electricity <- zoo::na.approx(ts_Hourly_Electricity)
 sum(is.na(MV_Hourly_Electricity))
 
 # Note: It is hard to see where the missing values is filled
-<<<<<<< HEAD
 autoplot(MV_Hourly_Electricity[,1], series="Wind Clean") +
   autolayer(ts_Hourly_Electricity[,1], series="Wind Raw") +
   ylab("Average Wind Speed") 
-=======
-autoplot(MV_Hourly_Electricity[,1], series="Hourly Demand Clean") +
-  autolayer(ts_Hourly_Electricity[,1], series="Hourly Demand Raw") +
-  ylab("Hourly Electricity Demand") 
->>>>>>> 36eef8eca9a7ea27b43f1bf4b8a2e1fe849894c6
 
 # Check outlier by test
 outlier(MV_Hourly_Electricity) 
@@ -170,6 +168,7 @@ grubbs.test(Out_Hourly_Electricity[,2]) # It is not outlier.
 grubbs.test(Out_Hourly_Electricity[,3]) # It is not outlier. 
 ```
 
+## Decomposition and Setting training and testing windows
 ```{r daily data set decompose, message=FALSE, warning=FALSE}
 # Daily Data Set
 # Decompose the time series
@@ -191,12 +190,9 @@ autoplot(ts_Daily_Electricity_train)
 autoplot(ts_Daily_Electricity_test)
 ```
 
+## Generating Time Series Model for Daiy Data Set
 ### Model 1: STL + ETS
-<<<<<<< HEAD
 ```{r Daily Model 1: STL + ETS, message=FALSE, warning=FALSE}
-=======
-```{r Daily Model 1: STL + ETS, warning=FALSE, message=FALSE}
->>>>>>> 36eef8eca9a7ea27b43f1bf4b8a2e1fe849894c6
 # Fit and forecast STL + ETS model to data
 ETS_fit <-  stlf(ts_Daily_Electricity_train, h = 365)
 
@@ -239,11 +235,7 @@ autoplot(ts_Daily_Electricity[,1]) +
 ```{r Daily Model 3: TBATS, message=FALSE, warning=FALSE}
 # Fit TBATS Model
 TBATS_fit <- tbats(ts_Daily_Electricity_train)
-<<<<<<< HEAD
 
-=======
-      
->>>>>>> 36eef8eca9a7ea27b43f1bf4b8a2e1fe849894c6
 TBATS_for <- forecast(TBATS_fit, h=365)
 
 #Plot foresting results
@@ -256,40 +248,24 @@ autoplot(ts_Daily_Electricity[,1]) +
   ylab("Total Electricity Demand") 
 ```
 
-<<<<<<< HEAD
 ### Model 4: Neural Network Time Series Forecasts [2,3]
 ```{r Daily Model 4: NN, message=FALSE, warning=FALSE}
 # Fit NN Model
 NN_fit23 <- nnetar(ts_Daily_Electricity_train,
-=======
-### Model 4: Neural Network Time Series Forecasts
-```{r Daily Model 4: NN, message=FALSE, warning=FALSE}
-# Fit NN Model
-NN_fit <- nnetar(ts_Daily_Electricity_train,
->>>>>>> 36eef8eca9a7ea27b43f1bf4b8a2e1fe849894c6
                  p=1,
                  P=0,
                  xreg=fourier(ts_Daily_Electricity_train, K=c(2,3)))
 
-<<<<<<< HEAD
 NN_for23 <- forecast(NN_fit23, h=365,xreg=fourier(ts_Daily_Electricity_train, 
-=======
-NN_for <- forecast(NN_fit, h=365,xreg=fourier(ts_Daily_Electricity_train, 
->>>>>>> 36eef8eca9a7ea27b43f1bf4b8a2e1fe849894c6
                                           K=c(2,3),h=365))
 
 
 #Plot foresting results
-<<<<<<< HEAD
 autoplot(NN_for23) +
-=======
-autoplot(NN_for) +
->>>>>>> 36eef8eca9a7ea27b43f1bf4b8a2e1fe849894c6
   ylab("Total Electricity Demand") 
 
 #Plot model + observed data
 autoplot(ts_Daily_Electricity[,1]) +
-<<<<<<< HEAD
   autolayer(NN_for23, series="Neural Network",PI=FALSE)+
   ylab("Total Electricity Demand") 
 ```
@@ -313,12 +289,10 @@ autoplot(NN_for22) +
 #Plot model + observed data
 autoplot(ts_Daily_Electricity[,1]) +
   autolayer(NN_for22, series="Neural Network",PI=FALSE)+
-=======
-  autolayer(NN_for, series="Neural Network",PI=FALSE)+
->>>>>>> 36eef8eca9a7ea27b43f1bf4b8a2e1fe849894c6
   ylab("Total Electricity Demand") 
 ```
 
+## Accuracy and Performance Testing
 ```{r daily model accuracy and performance, warning=FALSE, message=FALSE}
 # Model 1: STL + ETS
 ETS_scores <- accuracy(ETS_fit$mean,ts_Daily_Electricity_test)  
@@ -329,7 +303,6 @@ ARIMA_scores <- accuracy(ARIMA_Four_for$mean,ts_Daily_Electricity_test)
 # Model 3:  TBATS 
 TBATS_scores <- accuracy(TBATS_for$mean,ts_Daily_Electricity_test)
 
-<<<<<<< HEAD
 # Model 4:  Neural Network 23
 NN_scores23 <- accuracy(NN_for23$mean,ts_Daily_Electricity_test)
 
@@ -341,16 +314,6 @@ scores <- as.data.frame(
   rbind(ETS_scores, ARIMA_scores, TBATS_scores, NN_scores23, NN_scores22)
   )
 row.names(scores) <- c("STL+ETS", "ARIMA+Fourier","TBATS","NN23", "NN22")
-=======
-# Model 4:  Neural Network 
-NN_scores <- accuracy(NN_for$mean,ts_Daily_Electricity_test)
-
-# Create data frame
-scores <- as.data.frame(
-  rbind(ETS_scores, ARIMA_scores, TBATS_scores, NN_scores)
-  )
-row.names(scores) <- c("STL+ETS", "ARIMA+Fourier","TBATS","NN")
->>>>>>> 36eef8eca9a7ea27b43f1bf4b8a2e1fe849894c6
 
 # Choose model with lowest MAPE
 best_model_index <- which.min(scores[,"MAPE"])
@@ -368,12 +331,8 @@ autoplot(ts_Daily_Electricity[,1]) +
   autolayer(ETS_fit, PI=FALSE, series="STL+ETS") +
   autolayer(ARIMA_Four_for, PI=FALSE, series="ARIMA + Fourier") +
   autolayer(TBATS_for,PI=FALSE, series="TBATS") +
-<<<<<<< HEAD
   autolayer(NN_for23,PI=FALSE, series="NN23") +
   autolayer(NN_for22,PI=FALSE, series="NN22") +
-=======
-  autolayer(NN_for,PI=FALSE, series="NN") +
->>>>>>> 36eef8eca9a7ea27b43f1bf4b8a2e1fe849894c6
   xlab("Day") + ylab("Daily Active Power") +
   guides(colour=guide_legend(title="Forecast"))
 
@@ -381,16 +340,14 @@ autoplot(ts_Daily_Electricity_test) +
   autolayer(ETS_fit, PI=FALSE, series="STL+ETS") +
   autolayer(ARIMA_Four_for, PI=FALSE, series="ARIMA + Fourier") +
   autolayer(TBATS_for,PI=FALSE, series="TBATS") +
-<<<<<<< HEAD
   autolayer(NN_for23,PI=FALSE, series="NN") +
   autolayer(NN_for22,PI=FALSE, series="NN22") +
-=======
-  autolayer(NN_for,PI=FALSE, series="NN") +
->>>>>>> 36eef8eca9a7ea27b43f1bf4b8a2e1fe849894c6
   ylab("Daily Active Power") +
   guides(colour=guide_legend(title="Forecast"))
 ```
 
+## Forecasting for 2011 with fulltrain data set
+### Model 1: STL + ETS
 ```{r daily forecast for 2011, message=FALSE, warning=FALSE}
 # Create the time series to retain full data set
 ts_Daily_Electricity_fulltrain <- ts_Daily_Electricity[,1]
@@ -409,7 +366,6 @@ autoplot(ts_Daily_Electricity[,1]) +
 
 # Save forecast values in the data file
 ETS_forecast <- as.data.frame(ETS_fit_fulltrain$mean) %>%
-<<<<<<< HEAD
   rename(load = 1) %>%  
   mutate(date = seq.Date(from = as.Date("2011-01-01"), 
                          by = "day", 
@@ -419,18 +375,9 @@ ETS_forecast <- as.data.frame(ETS_fit_fulltrain$mean) %>%
 
 # Save forecast in the output folder 
 write.csv(ETS_forecast, "Output/ETS_forecast.csv", row.names = FALSE)
-=======
-  mutate(date = seq.Date(from = as.Date("2011-01-01"), 
-                         by = "day", 
-                         length.out = 59)) %>%
-  rename(load = 1) %>%
-  select(date, load)
-
-# Save forecast in the output folder 
-write.xlsx(ETS_forecast, "Output/ETS_forecast.xlsx")
->>>>>>> 36eef8eca9a7ea27b43f1bf4b8a2e1fe849894c6
 ```
 
+### Model 2: ARIMA + FOURIER terms
 ```{r daily forecast for 2011, message=FALSE, warning=FALSE}
 ## Fit and Forecast the full trained ARIMA + Fourier terms Model 
 ARIMA_Four_fit_fulltrain <- auto.arima(ts_Daily_Electricity_fulltrain, 
@@ -458,7 +405,6 @@ autoplot(ts_Daily_Electricity[,1]) +
 
 # Save forecast values in the data file
 ARIMA_Four_forecast <- as.data.frame(ARIMA_Four_for_fulltrain$mean) %>%
-<<<<<<< HEAD
   rename(load = 1) %>% 
   mutate(date = seq.Date(from = as.Date("2011-01-01"), 
                          by = "day", 
@@ -468,19 +414,10 @@ ARIMA_Four_forecast <- as.data.frame(ARIMA_Four_for_fulltrain$mean) %>%
 
 # Save forecast in the output folder 
 write.csv(ARIMA_Four_forecast, "Output/ARIMA_Four_forecast.csv", row.names = FALSE)
-=======
-  mutate(date = seq.Date(from = as.Date("2011-01-01"), 
-                         by = "day", 
-                         length.out = 59)) %>%
-  rename(load = 1) %>%
-  select(date, load)
-
-# Save forecast in the output folder
-write.xlsx(ARIMA_Four_forecast, "Output/ARIMA_Four_forecast.xlsx")
->>>>>>> 36eef8eca9a7ea27b43f1bf4b8a2e1fe849894c6
 
 ```
 
+### Model 3: TBATS
 ``` {r daily forecast for 2011, message=FALSE, warning=FALSE}
 ## Fit and Forecast the full trained TBATS Model 
 TBATS_fit_fulltrain <- tbats(ts_Daily_Electricity_fulltrain)
@@ -498,7 +435,6 @@ autoplot(ts_Daily_Electricity[,1]) +
 
 # Save forecast values in the data file
 TBATS_Four_forecast <- as.data.frame(TBATS_for_fulltrain$mean) %>%
-<<<<<<< HEAD
   rename(load = 1) %>%
   mutate(date = seq.Date(from = as.Date("2011-01-01"), 
                          by = "day", 
@@ -508,49 +444,26 @@ TBATS_Four_forecast <- as.data.frame(TBATS_for_fulltrain$mean) %>%
 
 # Save forecast in the output folder
 write.csv(TBATS_Four_forecast, "Output/TBATS_Four_forecast.csv", row.names = FALSE)
-=======
-  mutate(date = seq.Date(from = as.Date("2011-01-01"), 
-                         by = "day", 
-                         length.out = 59)) %>%
-  rename(load = 1) %>%
-  select(date, load)
-
-# Save forecast in the output folder
-write.xlsx(TBATS_Four_forecast, "Output/TBATS_Four_forecast.xlsx")
->>>>>>> 36eef8eca9a7ea27b43f1bf4b8a2e1fe849894c6
 
 ```
 
+### Model 4: Neural Network [2,3]
 ```{r daily forecast for 2011, message=FALSE, warning=FALSE}
-<<<<<<< HEAD
 ## Fit and Forecast the full trained Neural Model 23 
 NN_fit23_fulltrain <- nnetar(ts_Daily_Electricity_fulltrain,
-=======
-## Fit and Forecast the full trained Neural Model
-NN_fit_fulltrain <- nnetar(ts_Daily_Electricity_fulltrain,
->>>>>>> 36eef8eca9a7ea27b43f1bf4b8a2e1fe849894c6
                  p=1,
                  P=0,
                  xreg=fourier(ts_Daily_Electricity_fulltrain, K=c(2,3)))
 
-<<<<<<< HEAD
 NN_for23_fulltrain <- forecast(NN_fit23_fulltrain, h=59,xreg=fourier(ts_Daily_Electricity_fulltrain, 
                                           K=c(2,3),h=59))
 
 # Plot foresting results
 autoplot(NN_for23_fulltrain) +
-=======
-NN_for_fulltrain <- forecast(NN_fit_fulltrain, h=59,xreg=fourier(ts_Daily_Electricity_fulltrain, 
-                                          K=c(2,3),h=59))
-
-# Plot foresting results
-autoplot(NN_for_fulltrain) +
->>>>>>> 36eef8eca9a7ea27b43f1bf4b8a2e1fe849894c6
   ylab("Total Electricity Demand for Jan to Feb 2011") 
 
 # Plot model + observed data
 autoplot(ts_Daily_Electricity[,1]) +
-<<<<<<< HEAD
   autolayer(NN_for23_fulltrain, series="Neural Network Full Train",PI=FALSE)+
   ylab("Total Electricity Demand for Jan to Feb 2011") 
 
@@ -568,6 +481,7 @@ write.csv(NN_forecast23, "Output/NN_forecast23.csv", row.names = FALSE)
 
 ```
 
+### Model 5: Neural Network [2,3]
 ```{r daily forecast for 2011, message=FALSE, warning=FALSE}
 ## Fit and Forecast the full trained Neural Model 22
 NN_fit22_fulltrain <- nnetar(ts_Daily_Electricity_fulltrain,
@@ -600,20 +514,3 @@ NN_forecast22 <- as.data.frame(NN_for22_fulltrain$mean) %>%
 write.csv(NN_forecast22, "Output/NN_forecast22.csv", row.names = FALSE)
 
 ```
-=======
-  autolayer(NN_for_fulltrain, series="Neural Network Full Train",PI=FALSE)+
-  ylab("Total Electricity Demand for Jan to Feb 2011") 
-
-# Save forecast values in the data file
-NN_forecast <- as.data.frame(NN_for_fulltrain$mean) %>%
-  mutate(date = seq.Date(from = as.Date("2011-01-01"), 
-                         by = "day", 
-                         length.out = 59)) %>%
-  rename(load = 1) %>%
-  select(date, load)
-
-# Save forecast in the output folder 
-write.xlsx(ETS_forecast, "Output/ETS_forecast.xlsx")
-```
-
->>>>>>> 36eef8eca9a7ea27b43f1bf4b8a2e1fe849894c6
