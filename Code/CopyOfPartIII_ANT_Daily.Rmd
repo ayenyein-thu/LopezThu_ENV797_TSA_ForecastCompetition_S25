@@ -175,30 +175,42 @@ autoplot(ts_Daily_Electricity_decompose)
 ```
 
 ```{r daily data set training and testing, message=FALSE, warning=FALSE}
+n_for = 59
+
+# Create time series for only Feb 2010 
+ts_Daily_Electricity_Feb <- subset(ts_Daily_Electricity[,1],
+                                   end = length(ts_Daily_Electricity[,1])-(365-n_for))
+
 # Create a subset for training purpose
-n_for = 365
-ts_Daily_Electricity_train <- subset(ts_Daily_Electricity[,1],
-                                   end = length(ts_Daily_Electricity[,1])-n_for)
+ts_Daily_Electricity_train <- subset(ts_Daily_Electricity_Feb,
+                                   end = length(ts_Daily_Electricity_Feb)-n_for)
 
 # Create a subset for testing purpose
-ts_Daily_Electricity_test <- subset(ts_Daily_Electricity[,1],
-                                   start = length(ts_Daily_Electricity[,1])-n_for)
+ts_Daily_Electricity_test <- subset(ts_Daily_Electricity_Feb,
+                                   start = length(ts_Daily_Electricity_Feb)-n_for+1)
 
 autoplot(ts_Daily_Electricity_train)
 autoplot(ts_Daily_Electricity_test)
+
+# Print the first and last 5 rows to check 
+head(ts_Daily_Electricity_train, 5)
+tail(ts_Daily_Electricity_train, 5)
+
+head(ts_Daily_Electricity_test, 5)
+tail(ts_Daily_Electricity_test, 5)
 ```
 
 ### Generating Time Series Model for Daiy Data Set
 #### Model 1: STL + ETS
 ```{r Daily Model 1: STL + ETS, message=FALSE, warning=FALSE}
 # Fit and forecast STL + ETS model to data
-ETS_fit <-  stlf(ts_Daily_Electricity_train, h = 365)
+ETS_fit <-  stlf(ts_Daily_Electricity_train, h = 59)
 
 # Plot foresting results
 autoplot(ETS_fit) + ylab("Daily Electricity Demand")
 
 # Plot model + observed data
-autoplot(ts_Daily_Electricity[,1]) +
+autoplot(ts_Daily_Electricity_Feb) +
   autolayer(ETS_fit, series="STL + ETS",PI=FALSE) +
   ylab("Daily Electricity Demand")
 ```
@@ -216,15 +228,15 @@ ARIMA_Four_fit <- auto.arima(ts_Daily_Electricity_train,
 ARIMA_Four_for <- forecast(ARIMA_Four_fit,
                            xreg=fourier(ts_Daily_Electricity_train,
                                         K=c(2,3),
-                                        h=365),
-                           h=365
+                                        h=59),
+                           h=59
                            ) 
 
 #Plot foresting results
 autoplot(ARIMA_Four_for) + ylab("Total Electricity Demand")
 
 #Plot model + observed data
-autoplot(ts_Daily_Electricity[,1]) +
+autoplot(ts_Daily_Electricity_Feb) +
   autolayer(ARIMA_Four_for, series="ARIMA_FOURIER",PI=FALSE) +
   ylab("Total Electricity Demand")
 ```
@@ -234,14 +246,14 @@ autoplot(ts_Daily_Electricity[,1]) +
 # Fit TBATS Model
 TBATS_fit <- tbats(ts_Daily_Electricity_train)
 
-TBATS_for <- forecast(TBATS_fit, h=365)
+TBATS_for <- forecast(TBATS_fit, h=59)
 
 #Plot foresting results
 autoplot(TBATS_for) +
   ylab("Total Electricity Demand") 
 
 #Plot model + observed data
-autoplot(ts_Daily_Electricity[,1]) +
+autoplot(ts_Daily_Electricity_Feb) +
   autolayer(TBATS_for, series="TBATS",PI=FALSE)+
   ylab("Total Electricity Demand") 
 ```
@@ -254,8 +266,8 @@ NN_fit23 <- nnetar(ts_Daily_Electricity_train,
                  P=0,
                  xreg=fourier(ts_Daily_Electricity_train, K=c(2,3)))
 
-NN_for23 <- forecast(NN_fit23, h=365,xreg=fourier(ts_Daily_Electricity_train, 
-                                          K=c(2,3),h=365))
+NN_for23 <- forecast(NN_fit23, h=59,xreg=fourier(ts_Daily_Electricity_train, 
+                                          K=c(2,3),h=59))
 
 
 #Plot foresting results
@@ -263,7 +275,7 @@ autoplot(NN_for23) +
   ylab("Total Electricity Demand") 
 
 #Plot model + observed data
-autoplot(ts_Daily_Electricity[,1]) +
+autoplot(ts_Daily_Electricity_Feb) +
   autolayer(NN_for23, series="Neural Network 23",PI=FALSE)+
   ylab("Total Electricity Demand") 
 ```
@@ -276,8 +288,8 @@ NN_fit22 <- nnetar(ts_Daily_Electricity_train,
                  P=0,
                  xreg=fourier(ts_Daily_Electricity_train, K=c(2,2)))
 
-NN_for22 <- forecast(NN_fit22, h=365,xreg=fourier(ts_Daily_Electricity_train, 
-                                          K=c(2,2),h=365))
+NN_for22 <- forecast(NN_fit22, h=59,xreg=fourier(ts_Daily_Electricity_train, 
+                                          K=c(2,2),h=59))
 
 
 #Plot foresting results
@@ -285,7 +297,7 @@ autoplot(NN_for22) +
   ylab("Total Electricity Demand") 
 
 #Plot model + observed data
-autoplot(ts_Daily_Electricity[,1]) +
+autoplot(ts_Daily_Electricity_Feb) +
   autolayer(NN_for22, series="Neural Network 22",PI=FALSE)+
   ylab("Total Electricity Demand") 
 ```
@@ -313,9 +325,9 @@ humidity <- as.numeric(Daily_Electricity$Daily_humidity[1:1826])
 fourier_combined <- cbind(fourier, temp = temp, humidity = humidity)
 
 # Generate Fourier + exogenous variables for forecasting
-fourier_for <- fourier(ts_Daily_Electricity_train, K = c(2, 3), h = 365)
-temp_for <- as.numeric(Daily_Electricity$Daily_temp[1827:2191])
-humidity_for <- as.numeric(Daily_Electricity$Daily_humidity[1827:2191])
+fourier_for <- fourier(ts_Daily_Electricity_train, K = c(2, 3), h = 59)
+temp_for <- as.numeric(Daily_Electricity$Daily_temp[1827:1885])
+humidity_for <- as.numeric(Daily_Electricity$Daily_humidity[1827:1885])
 fourier_combined_for <- cbind(fourier_for, temp = temp_for, humidity = humidity_for)
 
 # Match column names
@@ -329,13 +341,13 @@ ARIMA_Fourexo_fit <- auto.arima(ts_Daily_Electricity_train,
 
 ARIMA_Fourexo_for <- forecast(ARIMA_Fourexo_fit,
                                xreg = fourier_combined_for,
-                               h = 365)
+                               h = 59)
 
 #Plot foresting results
 autoplot(ARIMA_Fourexo_for) + ylab("Total Electricity Demand")
 
 #Plot model + observed data
-autoplot(ts_Daily_Electricity[,1]) +
+autoplot(ts_Daily_Electricity_Feb) +
   autolayer(ARIMA_Fourexo_for, series="ARIMA_FOURIER + TempHum",PI=FALSE) +
   ylab("Total Electricity Demand")
 ```
@@ -348,8 +360,8 @@ tempT <- as.numeric(Daily_Electricity$Daily_temp[1:1826])
 fourier_combinedT <- cbind(fourier, temp = tempT)
 
 # Generate Fourier + exogenous variables for forecasting
-fourier_forT <- fourier(ts_Daily_Electricity_train, K = c(2, 3), h = 365)
-temp_forT <- as.numeric(Daily_Electricity$Daily_temp[1827:2191])
+fourier_forT <- fourier(ts_Daily_Electricity_train, K = c(2, 3), h = 59)
+temp_forT <- as.numeric(Daily_Electricity$Daily_temp[1827:1885])
 fourier_combined_forT <- cbind(fourier_forT, temp = temp_forT)
 
 # Match column names
@@ -363,13 +375,13 @@ ARIMA_Fourexo_fitT <- auto.arima(ts_Daily_Electricity_train,
 
 ARIMA_Fourexo_forT <- forecast(ARIMA_Fourexo_fitT,
                                xreg = fourier_combined_forT,
-                               h = 365)
+                               h = 59)
 
 #Plot foresting results
 autoplot(ARIMA_Fourexo_forT) + ylab("Total Electricity Demand")
 
 #Plot model + observed data
-autoplot(ts_Daily_Electricity[,1]) +
+autoplot(ts_Daily_Electricity_Feb) +
   autolayer(ARIMA_Fourexo_forT, series="ARIMA_FOURIER + Temp",PI=FALSE) +
   ylab("Total Electricity Demand")
 ```
@@ -383,9 +395,9 @@ humidity_nn <- as.numeric(Daily_Electricity$Daily_humidity[1:1826])
 fourier_nncombined <- cbind(fourier_nn, temp = temp_nn, humidity = humidity_nn)
 
 # Generate Fourier + exogenous variables for forecasting
-fourier_nnfor <- fourier(ts_Daily_Electricity_train, K = c(2, 2), h = 365)
-temp_nnfor <- as.numeric(Daily_Electricity$Daily_temp[1827:2191])
-humidity_nnfor <- as.numeric(Daily_Electricity$Daily_humidity[1827:2191])
+fourier_nnfor <- fourier(ts_Daily_Electricity_train, K = c(2, 2), h = 59)
+temp_nnfor <- as.numeric(Daily_Electricity$Daily_temp[1827:1885])
+humidity_nnfor <- as.numeric(Daily_Electricity$Daily_humidity[1827:1885])
 fourier_combined_nnfor <- cbind(fourier_nnfor, temp = temp_nnfor, humidity = humidity_nnfor)
 
 # Match column names between training and forecast xreg
@@ -398,7 +410,7 @@ NNexo_fit22 <- nnetar(ts_Daily_Electricity_train,
                       xreg = fourier_nncombined)
 
 NNexo_for22 <- forecast(NNexo_fit22,
-                        h = 365,
+                        h = 59,
                         xreg = fourier_combined_nnfor)
 
 #Plot foresting results
@@ -406,7 +418,7 @@ autoplot(NNexo_for22) +
   ylab("Total Electricity Demand") 
 
 #Plot model + observed data
-autoplot(ts_Daily_Electricity[,1]) +
+autoplot(ts_Daily_Electricity_Feb) +
   autolayer(NNexo_for22, series="Neural Network 22 + Exo",PI=FALSE)+
   ylab("Total Electricity Demand") 
 ```
@@ -416,12 +428,14 @@ autoplot(ts_Daily_Electricity[,1]) +
 # Generate Fourier + exogenous variables for model fitting
 fourier_nnT <- fourier(ts_Daily_Electricity_train, K = c(2, 3))
 temp_nnT <- as.numeric(Daily_Electricity$Daily_temp[1:1826])
-fourier_nncombinedT <- cbind(fourier_nnT, temp = temp_nnT)
+humidity_nnT <- as.numeric(Daily_Electricity$Daily_humidity[1:1826])
+fourier_nncombinedT <- cbind(fourier_nnT, temp = temp_nnT, humidity = humidity_nnT)
 
 # Generate Fourier + exogenous variables for forecasting
-fourier_nnforT <- fourier(ts_Daily_Electricity_train, K = c(2, 3), h = 365)
-temp_nnforT <- as.numeric(Daily_Electricity$Daily_temp[1827:2191])
-fourier_combined_nnforT <- cbind(fourier_nnforT, temp = temp_nnforT)
+fourier_nnforT <- fourier(ts_Daily_Electricity_train, K = c(2, 3), h = 59)
+temp_nnforT <- as.numeric(Daily_Electricity$Daily_temp[1827:1885])
+humidity_nnforT <- as.numeric(Daily_Electricity$Daily_humidity[1827:1885])
+fourier_combined_nnforT <- cbind(fourier_nnforT, temp = temp_nnforT, humidity = humidity_nnforT)
 
 # Match column names between training and forecast xreg
 colnames(fourier_combined_nnforT) <- colnames(fourier_nncombinedT)
@@ -433,7 +447,7 @@ NNexo_fit23 <- nnetar(ts_Daily_Electricity_train,
                       xreg = fourier_nncombinedT)
 
 NNexo_for23 <- forecast(NNexo_fit23,
-                        h = 365,
+                        h = 59,
                         xreg = fourier_combined_nnforT)
 
 #Plot foresting results
@@ -441,7 +455,7 @@ autoplot(NNexo_for23) +
   ylab("Total Electricity Demand") 
 
 #Plot model + observed data
-autoplot(ts_Daily_Electricity[,1]) +
+autoplot(ts_Daily_Electricity_Feb) +
   autolayer(NNexo_for23, series="Neural Network 23 + Exo",PI=FALSE)+
   ylab("Total Electricity Demand") 
 ```
