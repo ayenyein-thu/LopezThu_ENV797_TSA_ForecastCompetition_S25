@@ -1,0 +1,710 @@
+---
+title: "Forecasting Competition_Part II"
+author: "Alex Lopez and Aye Nyein Thu"
+date: "2025-03-23"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Loading packages
+```{r load packages, message=FALSE, warning=FALSE}
+# Load required packages
+library(readxl)
+library(openxlsx)
+library(writexl)
+library(dplyr)
+library(lubridate)
+library(ggplot2)
+library(cowplot)
+library(forecast)  
+library(Kendall)
+library(tseries)
+library(outliers)
+library(tidyverse)
+library(smooth)
+library(kableExtra)
+library(car)
+
+# Check working directory
+getwd()
+```
+
+## Importing data sets
+```{r import demand data set, results='hide', warning=FALSE, message=FALSE}
+## Raw Data: Electricity Demand 
+# Import the data set
+Demand <- read_excel(
+  path = "./Data/Raw/load.xlsx", sheet = "Sheet1", col_names = TRUE
+)
+
+# Format the hourly data set
+Hourly_Demand <- Demand %>%
+  pivot_longer(cols = starts_with("h"), 
+               names_to = "hour", 
+               values_to = "Hourly_demand") %>%
+  mutate(Hour = as.numeric(sub("h", "", hour))) %>%
+  mutate(Date = ymd(date)) %>% 
+  select(Date, Hour, Hourly_demand)
+
+summary(Hourly_Demand) # Note the 6 missing values
+ 
+# Format the daily data set 
+Daily_Demand  <- Hourly_Demand %>%
+  filter( !is.na(Hourly_demand)) %>% 
+  group_by(Date) %>% 
+  summarise(Daily_demand = mean(Hourly_demand)) 
+
+## Raw Data: Relative Humidity 
+# Import the data set
+Humidity <- read_excel(
+  path = "./Data/Raw/relative_humidity.xlsx", sheet = "Sheet1", col_names = TRUE
+)
+
+# Format the hourly data set
+Hourly_Humidity <- Humidity %>%
+  mutate(Date = ymd(date), 
+         Hour = hr, 
+         Hourly_humidity = rowMeans(select(.,rh_ws1:rh_ws28), na.rm = TRUE)) %>% 
+  select(Date, Hour, Hourly_humidity)
+
+# Format the daily data set 
+Daily_Humidity  <- Hourly_Humidity %>%
+  group_by(Date) %>% 
+  summarise(Daily_humidity = mean(Hourly_humidity)) 
+
+## Raw Data: Temperature 
+# Import the data set
+Temperature <- read_excel(
+  path = "./Data/Raw/temperature.xlsx", sheet = "Sheet1", col_names = TRUE
+)
+
+# Format the hourly data set
+Hourly_Temperature <- Temperature %>%
+  mutate(Date = ymd(date), 
+         Hour = hr, 
+         Hourly_temp = rowMeans(select(.,t_ws1:t_ws28), na.rm = TRUE)) %>% 
+  select(Date, Hour, Hourly_temp)
+
+# Format the daily data set 
+Daily_Temperature  <- Hourly_Temperature %>%
+  group_by(Date) %>% 
+  summarise(Daily_temp = mean(Hourly_temp)) 
+```
+
+## Data Wrangling 
+```{r combining data set, results='hide', warning=FALSE, message=FALSE}
+# Combine the hourly data set
+Hourly_Electricity <- Hourly_Demand %>% 
+  left_join(Hourly_Humidity, by = c("Date", "Hour")) %>% 
+  left_join(Hourly_Temperature, by = c("Date", "Hour"))
+
+summary(Hourly_Electricity) # Note the 6 missing values
+  
+# Combine the daily data set using the simple average 
+Daily_Electricity <- Daily_Demand %>% 
+  left_join(Daily_Humidity, by = "Date")  %>% 
+  left_join(Daily_Temperature, by = "Date")
+  
+# Save the processed data sets in the folder 
+#write.xlsx(Hourly_Electricity, "Data/Processed/Hourly_Electricity.xlsx") 
+#write.xlsx(Daily_Electricity, "Data/Processed/Daily_Electricity.xlsx")
+```
+
+## Initial Data Exploration 
+```{r initial plots, message=FALSE, warning=FALSE}}
+# Hourly 
+ggplot(Hourly_Electricity, aes(x=Date)) +
+  geom_line(aes(y=Hourly_demand), color="blue") 
+
+# Daily using simple average 
+ggplot(Daily_Electricity, aes(x=Date)) +
+  geom_line(aes(y=Daily_demand), color="blue") 
+```
+
+## Transforming into Time Series 
+```{r tranform into time series, warning=FALSE, message=FALSE}
+# Transform data into time series 
+ts_Hourly_Electricity <- msts(Hourly_Electricity[,3:5], 
+                             seasonal.periods = c(24,168,8766),
+                             start = c(2005, 1, 1, 1)) # Added the hour
+
+ts_Daily_Electricity <- msts(Daily_Electricity[,2:4], 
+                             seasonal.periods = c(7, 365.25),
+                             start = c(2005, 1, 1))
+```
+
+## Handling missing values and outliers
+```{r missing values and outliers, warning=FALSE, message=FALSE}
+# Check missing values 
+sum(is.na(ts_Hourly_Electricity))
+sum(is.na(ts_Daily_Electricity))
+
+# Check outlier by test
+outlier(MV_Hourly_Electricity) 
+grubbs.test(MV_Hourly_Electricity[,1]) # It is outlier. 
+grubbs.test(MV_Hourly_Electricity[,2]) # It is not outlier. 
+grubbs.test(MV_Hourly_Electricity[,3]) # It is not outlier. 
+
+outlier(ts_Daily_Electricity)
+grubbs.test(ts_Daily_Electricity[,1]) # It is not outlier. 
+grubbs.test(ts_Daily_Electricity[,2]) # It is not outlier. 
+grubbs.test(ts_Daily_Electricity[,3]) # It is not outlier. 
+
+# Handle missing values and outliers for the hourly data 
+Cleaned_HDemand <- tsclean(ts_Hourly_Electricity[,1]) 
+outlier(Cleaned_HDemand) 
+grubbs.test(Cleaned_HDemand) # It is not outlier. 
+
+autoplot(ts_Hourly_Electricity[,1], series="Raw Data") +
+  autolayer(Cleaned_HDemand, series="Cleaned Data") +
+  ylab("Hourly Electricity") # Only two data points are corrected. 
+```
+
+## Daily Demand 
+### Decomposition and Setting training and testing windows
+```{r daily data set decompose, message=FALSE, warning=FALSE}
+# Daily Data Set
+# Decompose the time series
+ts_Daily_Electricity_decompose <- mstl(ts_Daily_Electricity[,1])
+autoplot(ts_Daily_Electricity_decompose)
+```
+
+```{r daily data set training and testing, message=FALSE, warning=FALSE}
+# Create a subset for training purpose
+n_for = 365
+ts_Daily_Electricity_train <- subset(ts_Daily_Electricity[,1],
+                                   end = length(ts_Daily_Electricity[,1])-n_for)
+
+# Create a subset for testing purpose
+ts_Daily_Electricity_test <- subset(ts_Daily_Electricity[,1],
+                                   start = length(ts_Daily_Electricity[,1])-n_for)
+
+autoplot(ts_Daily_Electricity_train)
+autoplot(ts_Daily_Electricity_test)
+```
+
+### Generating Time Series Model for Daiy Data Set
+#### Model 1: STL + ETS
+```{r Daily Model 1: STL + ETS, message=FALSE, warning=FALSE}
+# Fit and forecast STL + ETS model to data
+ETS_fit <-  stlf(ts_Daily_Electricity_train, h = 365)
+
+# Plot foresting results
+autoplot(ETS_fit) + ylab("Daily Electricity Demand")
+
+# Plot model + observed data
+autoplot(ts_Daily_Electricity[,1]) +
+  autolayer(ETS_fit, series="STL + ETS",PI=FALSE) +
+  ylab("Daily Electricity Demand")
+```
+
+#### Model 2: ARIMA + FOURIER terms
+```{r Daily Model 2: ARIMA + FOURIER, message=FALSE, warning=FALSE}
+# Fit arima model with fourier terms as exogenous regressors
+ARIMA_Four_fit <- auto.arima(ts_Daily_Electricity_train, 
+                             seasonal=FALSE, 
+                             lambda=0,
+                             xreg=fourier(ts_Daily_Electricity_train,
+                                          K=c(2,3)) 
+                             )
+
+ARIMA_Four_for <- forecast(ARIMA_Four_fit,
+                           xreg=fourier(ts_Daily_Electricity_train,
+                                        K=c(2,3),
+                                        h=365),
+                           h=365
+                           ) 
+
+#Plot foresting results
+autoplot(ARIMA_Four_for) + ylab("Total Electricity Demand")
+
+#Plot model + observed data
+autoplot(ts_Daily_Electricity[,1]) +
+  autolayer(ARIMA_Four_for, series="ARIMA_FOURIER",PI=FALSE) +
+  ylab("Total Electricity Demand")
+```
+
+#### Model 3: TBATS
+```{r Daily Model 3: TBATS, message=FALSE, warning=FALSE}
+# Fit TBATS Model
+TBATS_fit <- tbats(ts_Daily_Electricity_train)
+
+TBATS_for <- forecast(TBATS_fit, h=365)
+
+#Plot foresting results
+autoplot(TBATS_for) +
+  ylab("Total Electricity Demand") 
+
+#Plot model + observed data
+autoplot(ts_Daily_Electricity[,1]) +
+  autolayer(TBATS_for, series="TBATS",PI=FALSE)+
+  ylab("Total Electricity Demand") 
+```
+
+#### Model 4: Neural Network Time Series Forecasts [2,3]
+```{r Daily Model 4: NN, message=FALSE, warning=FALSE}
+# Fit NN Model
+NN_fit23 <- nnetar(ts_Daily_Electricity_train,
+                 p=1,
+                 P=0,
+                 xreg=fourier(ts_Daily_Electricity_train, K=c(2,3)))
+
+NN_for23 <- forecast(NN_fit23, h=365,xreg=fourier(ts_Daily_Electricity_train, 
+                                          K=c(2,3),h=365))
+
+
+#Plot foresting results
+autoplot(NN_for23) +
+  ylab("Total Electricity Demand") 
+
+#Plot model + observed data
+autoplot(ts_Daily_Electricity[,1]) +
+  autolayer(NN_for23, series="Neural Network 23",PI=FALSE)+
+  ylab("Total Electricity Demand") 
+```
+
+#### Model 5: Neural Network Time Series Forecasts [2,2]
+```{r Daily Model 5: NN, message=FALSE, warning=FALSE}
+# Fit NN Model
+NN_fit22 <- nnetar(ts_Daily_Electricity_train,
+                 p=1,
+                 P=0,
+                 xreg=fourier(ts_Daily_Electricity_train, K=c(2,2)))
+
+NN_for22 <- forecast(NN_fit22, h=365,xreg=fourier(ts_Daily_Electricity_train, 
+                                          K=c(2,2),h=365))
+
+
+#Plot foresting results
+autoplot(NN_for22) +
+  ylab("Total Electricity Demand") 
+
+#Plot model + observed data
+autoplot(ts_Daily_Electricity[,1]) +
+  autolayer(NN_for22, series="Neural Network 22",PI=FALSE)+
+  ylab("Total Electricity Demand") 
+```
+
+#### Exogenous Variables 
+```{r VIF test}
+# Correlation Test 
+cor.test(Daily_Electricity$Daily_demand, Daily_Electricity$Daily_temp) # Weak negative correlation
+cor.test(Daily_Electricity$Daily_demand, Daily_Electricity$Daily_humidity) # Weak negative correlation 
+cor.test(Daily_Electricity$Daily_temp, Daily_Electricity$Daily_humidity) # Moderate positive correlation 
+
+# VIF Test
+LM_model <- lm(Daily_demand ~ Daily_temp + Daily_humidity, data = Daily_Electricity)
+summary(LM_model)
+
+vif(LM_model) # Test scores less than the standard threshold 5 (Hence, Low Multi-collinearity) 
+```
+
+#### Model 6: ARIMA + FOURIER terms + Exo 
+```{r Daily Model 6: ARIMA + FOURIER + Exo, message=FALSE, warning=FALSE}
+# Generate Fourier + exogenous variables for model fitting
+fourier <- fourier(ts_Daily_Electricity_train, K = c(2, 3))
+temp <- as.numeric(Daily_Electricity$Daily_temp[1:1826])
+humidity <- as.numeric(Daily_Electricity$Daily_humidity[1:1826])
+fourier_combined <- cbind(fourier, temp = temp, humidity = humidity)
+
+# Generate Fourier + exogenous variables for forecasting
+fourier_for <- fourier(ts_Daily_Electricity_train, K = c(2, 3), h = 365)
+temp_for <- as.numeric(Daily_Electricity$Daily_temp[1827:2191])
+humidity_for <- as.numeric(Daily_Electricity$Daily_humidity[1827:2191])
+fourier_combined_for <- cbind(fourier_for, temp = temp_for, humidity = humidity_for)
+
+# Match column names
+colnames(fourier_combined_for) <- colnames(fourier_combined)
+
+# Fit and Forecast Model
+ARIMA_Fourexo_fit <- auto.arima(ts_Daily_Electricity_train, 
+                                 seasonal = FALSE, 
+                                 lambda = 0,
+                                 xreg = fourier_combined)
+
+ARIMA_Fourexo_for <- forecast(ARIMA_Fourexo_fit,
+                               xreg = fourier_combined_for,
+                               h = 365)
+
+#Plot foresting results
+autoplot(ARIMA_Fourexo_for) + ylab("Total Electricity Demand")
+
+#Plot model + observed data
+autoplot(ts_Daily_Electricity[,1]) +
+  autolayer(ARIMA_Fourexo_for, series="ARIMA_FOURIER + Exo",PI=FALSE) +
+  ylab("Total Electricity Demand")
+```
+
+#### Model 7: Neural Network Time Series Forecasts [2,2] + Exo 
+```{r Daily Model 7: NN + Exo, message=FALSE, warning=FALSE}
+# Generate Fourier + exogenous variables for model fitting
+fourier_nn <- fourier(ts_Daily_Electricity_train, K = c(2, 2))
+temp_nn <- as.numeric(Daily_Electricity$Daily_temp[1:1826])
+humidity_nn <- as.numeric(Daily_Electricity$Daily_humidity[1:1826])
+fourier_nncombined <- cbind(fourier_nn, temp = temp_nn, humidity = humidity_nn)
+
+# Generate Fourier + exogenous variables for forecasting
+fourier_nnfor <- fourier(ts_Daily_Electricity_train, K = c(2, 2), h = 365)
+temp_nnfor <- as.numeric(Daily_Electricity$Daily_temp[1827:2191])
+humidity_nnfor <- as.numeric(Daily_Electricity$Daily_humidity[1827:2191])
+fourier_combined_nnfor <- cbind(fourier_nnfor, temp = temp_nnfor, humidity = humidity_nnfor)
+
+# Match column names between training and forecast xreg
+colnames(fourier_combined_nnfor) <- colnames(fourier_nncombined)
+
+# Fit and Forecast the model 
+NNexo_fit22 <- nnetar(ts_Daily_Electricity_train,
+                      p = 1,
+                      P = 0,
+                      xreg = fourier_nncombined)
+
+NNexo_for22 <- forecast(NNexo_fit22,
+                        h = 365,
+                        xreg = fourier_combined_nnfor)
+
+#Plot foresting results
+autoplot(NNexo_for22) +
+  ylab("Total Electricity Demand") 
+
+#Plot model + observed data
+autoplot(ts_Daily_Electricity[,1]) +
+  autolayer(NNexo_for22, series="Neural Network 22 + Exo",PI=FALSE)+
+  ylab("Total Electricity Demand") 
+```
+
+## Accuracy and Performance Testing
+```{r daily model accuracy and performance, warning=FALSE, message=FALSE}
+# Model 1: STL + ETS
+ETS_scores <- accuracy(ETS_fit$mean,ts_Daily_Electricity_test)  
+
+# Model 2: ARIMA + Fourier 
+ARIMA_scores <- accuracy(ARIMA_Four_for$mean,ts_Daily_Electricity_test)
+
+# Model 3:  TBATS 
+TBATS_scores <- accuracy(TBATS_for$mean,ts_Daily_Electricity_test)
+
+# Model 4:  Neural Network 23
+NN_scores23 <- accuracy(NN_for23$mean,ts_Daily_Electricity_test)
+
+# Model 5:  Neural Network 22
+NN_scores22 <- accuracy(NN_for22$mean,ts_Daily_Electricity_test)
+
+# Model 6: ARIMA + Fourier + Exo 
+ARIMAexo_scores <- accuracy(ARIMA_Fourexo_for$mean,ts_Daily_Electricity_test)
+
+# Model 7:  Neural Network 22 + Exo
+NN_scores22 <- accuracy(NNexo_for22$mean,ts_Daily_Electricity_test)
+
+# Create data frame
+scores <- as.data.frame(
+  rbind(ETS_scores, ARIMA_scores, TBATS_scores, NN_scores23, NN_scores22, ARIMAexo_scores, NN_scores22)
+  )
+row.names(scores) <- c("STL+ETS", "ARIMA+Fourier","TBATS","NN23", "NN22", "ARIMA+Fourier+Exo", "NN22+Exo")
+
+# Choose model with lowest MAPE
+best_model_index <- which.min(scores[,"MAPE"])
+cat("The best model by MAPE is:", row.names(scores[best_model_index,])) 
+
+# Construct tables
+kbl(scores, 
+      caption = "Forecast Accuracy for Daily Total Electricity Demand",
+      digits = array(5,ncol(scores))) %>%
+  kable_styling(full_width = FALSE, position = "center", latex_options = "hold_position") %>%
+  kable_styling(latex_options="striped", stripe_index = which.min(scores[,"MAPE"]))
+
+# Plot 
+autoplot(ts_Daily_Electricity[,1]) +
+  autolayer(ETS_fit, PI=FALSE, series="STL+ETS") +
+  autolayer(ARIMA_Four_for, PI=FALSE, series="ARIMA + Fourier") +
+  autolayer(TBATS_for,PI=FALSE, series="TBATS") +
+  autolayer(NN_for23,PI=FALSE, series="NN23") +
+  autolayer(NN_for22,PI=FALSE, series="NN22") +
+  autolayer(ARIMA_Fourexo_for, PI=FALSE, series="ARIMA + Fourier + Exo") +
+  autolayer(NNexo_for22,PI=FALSE, series="NN22 + Exo") + 
+  xlab("Day") + ylab("Daily Active Power") +
+  guides(colour=guide_legend(title="Forecast"))
+
+autoplot(ts_Daily_Electricity_test) +
+  autolayer(ETS_fit, PI=FALSE, series="STL+ETS") +
+  autolayer(ARIMA_Four_for, PI=FALSE, series="ARIMA + Fourier") +
+  autolayer(TBATS_for,PI=FALSE, series="TBATS") +
+  autolayer(NN_for23,PI=FALSE, series="NN") +
+  autolayer(NN_for22,PI=FALSE, series="NN22") +
+  autolayer(ARIMA_Fourexo_for, PI=FALSE, series="ARIMA + Fourier + Exo") +
+  autolayer(NNexo_for22,PI=FALSE, series="NN22 + Exo") +
+  ylab("Daily Active Power") +
+  guides(colour=guide_legend(title="Forecast"))
+```
+
+## Forecasting for 2011 with fulltrain data set
+```{r create full train time series, message=FALSE, warning=}
+# Create the time series to retain full data set
+ts_Daily_Electricity_fulltrain <- ts_Daily_Electricity[,1]
+```
+
+### Model 1: STL + ETS
+```{r daily forecast for 2011, message=FALSE, warning=FALSE}
+## Fit and Forecast the full trained STL+ETS Model 
+ETS_fit_fulltrain <- stlf(ts_Daily_Electricity_fulltrain, h = 59)
+
+# Plot foresting results
+autoplot(ETS_fit_fulltrain) +
+  ylab("Total Electricity Demand for Jan to Feb 2011") 
+
+# Plot model + observed data
+autoplot(ts_Daily_Electricity[,1]) +
+  autolayer(ETS_fit_fulltrain, series="STL + ETS Model Full Train",PI=FALSE)+
+  ylab("Total Electricity Demand for Jan to Feb 2011") 
+
+# Save forecast values in the data file
+ETS_forecast <- as.data.frame(ETS_fit_fulltrain$mean) %>%
+  rename(load = 1) %>%  
+  mutate(date = seq.Date(from = as.Date("2011-01-01"), 
+                         by = "day", 
+                         length.out = 59),
+         load = round(load)) %>%  
+  select(date, load)
+
+# Save forecast in the output folder 
+write.csv(ETS_forecast, "Output/ETS_forecast.csv", row.names = FALSE)
+```
+
+### Model 2: ARIMA + FOURIER terms
+```{r daily forecast for 2011, message=FALSE, warning=FALSE}
+## Fit and Forecast the full trained ARIMA + Fourier terms Model 
+ARIMA_Four_fit_fulltrain <- auto.arima(ts_Daily_Electricity_fulltrain, 
+                                       seasonal=FALSE, 
+                                       lambda=0,
+                                       xreg=fourier(ts_Daily_Electricity_fulltrain,
+                                                    K=c(2,3)) 
+                                       )
+
+ARIMA_Four_for_fulltrain <- forecast(ARIMA_Four_fit_fulltrain,
+                                     xreg=fourier(ts_Daily_Electricity_fulltrain,
+                                                  K=c(2,3),
+                                                  h=59),
+                                     h=59
+                                     )
+
+# Plot foresting results
+autoplot(ARIMA_Four_for_fulltrain) +
+  ylab("Total Electricity Demand for Jan to Feb 2011") 
+
+# Plot model + observed data
+autoplot(ts_Daily_Electricity[,1]) +
+  autolayer(ARIMA_Four_for_fulltrain, series="ARIMA + Fourier Model Full Train",PI=FALSE)+
+  ylab("Total Electricity Demand for Jan to Feb 2011") 
+
+# Save forecast values in the data file
+ARIMA_Four_forecast <- as.data.frame(ARIMA_Four_for_fulltrain$mean) %>%
+  rename(load = 1) %>% 
+  mutate(date = seq.Date(from = as.Date("2011-01-01"), 
+                         by = "day", 
+                         length.out = 59),
+         load = round(load)) %>%
+  select(date, load)
+
+# Save forecast in the output folder 
+write.csv(ARIMA_Four_forecast, "Output/ARIMA_Four_forecast.csv", row.names = FALSE)
+```
+
+### Model 3: TBATS
+``` {r daily forecast for 2011, message=FALSE, warning=FALSE}
+## Fit and Forecast the full trained TBATS Model 
+TBATS_fit_fulltrain <- tbats(ts_Daily_Electricity_fulltrain)
+
+TBATS_for_fulltrain <- forecast(TBATS_fit_fulltrain, h=59)
+  
+# Plot foresting results
+autoplot(TBATS_for_fulltrain) +
+  ylab("Total Electricity Demand for Jan to Feb 2011") 
+
+# Plot model + observed data
+autoplot(ts_Daily_Electricity[,1]) +
+  autolayer(TBATS_for_fulltrain, series="TBATS Model Full Train",PI=FALSE)+
+  ylab("Total Electricity Demand for Jan to Feb 2011") 
+
+# Save forecast values in the data file
+TBATS_Four_forecast <- as.data.frame(TBATS_for_fulltrain$mean) %>%
+  rename(load = 1) %>%
+  mutate(date = seq.Date(from = as.Date("2011-01-01"), 
+                         by = "day", 
+                         length.out = 59),
+         load = round(load)) %>%
+  select(date, load)
+
+# Save forecast in the output folder
+write.csv(TBATS_Four_forecast, "Output/TBATS_Four_forecast.csv", row.names = FALSE)
+
+```
+
+### Model 4: Neural Network [2,3]
+```{r daily forecast for 2011, message=FALSE, warning=FALSE}
+## Fit and Forecast the full trained Neural Model 23 
+NN_fit23_fulltrain <- nnetar(ts_Daily_Electricity_fulltrain,
+                 p=1,
+                 P=0,
+                 xreg=fourier(ts_Daily_Electricity_fulltrain, K=c(2,3)))
+
+NN_for23_fulltrain <- forecast(NN_fit23_fulltrain, h=59,xreg=fourier(ts_Daily_Electricity_fulltrain, 
+                                          K=c(2,3),h=59))
+
+# Plot foresting results
+autoplot(NN_for23_fulltrain) +
+  ylab("Total Electricity Demand for Jan to Feb 2011") 
+
+# Plot model + observed data
+autoplot(ts_Daily_Electricity[,1]) +
+  autolayer(NN_for23_fulltrain, series="Neural Network Full Train",PI=FALSE)+
+  ylab("Total Electricity Demand for Jan to Feb 2011") 
+
+# Save forecast values in the data file
+NN_forecast23 <- as.data.frame(NN_for23_fulltrain$mean) %>%
+  rename(load = 1) %>%
+  mutate(date = seq.Date(from = as.Date("2011-01-01"), 
+                         by = "day", 
+                         length.out = 59),
+         load = round(load)) %>%
+  select(date, load)
+
+# Save forecast in the output folder 
+write.csv(NN_forecast23, "Output/NN_forecast23.csv", row.names = FALSE)
+
+```
+
+### Model 5: Neural Network [2,2]
+```{r daily forecast for 2011, message=FALSE, warning=FALSE}
+## Fit and Forecast the full trained Neural Model 22
+NN_fit22_fulltrain <- nnetar(ts_Daily_Electricity_fulltrain,
+                 p=1,
+                 P=0,
+                 xreg=fourier(ts_Daily_Electricity_fulltrain, K=c(2,2)))
+
+NN_for22_fulltrain <- forecast(NN_fit22_fulltrain, h=59,xreg=fourier(ts_Daily_Electricity_fulltrain, 
+                                          K=c(2,2),h=59))
+
+# Plot foresting results
+autoplot(NN_for22_fulltrain) +
+  ylab("Total Electricity Demand for Jan to Feb 2011") 
+
+# Plot model + observed data
+autoplot(ts_Daily_Electricity[,1]) +
+  autolayer(NN_for22_fulltrain, series="Neural Network Full Train",PI=FALSE)+
+  ylab("Total Electricity Demand for Jan to Feb 2011") 
+
+# Save forecast values in the data file
+NN_forecast22 <- as.data.frame(NN_for22_fulltrain$mean) %>%
+  rename(load = 1) %>%
+  mutate(date = seq.Date(from = as.Date("2011-01-01"), 
+                         by = "day", 
+                         length.out = 59),
+         load = round(load)) %>%
+  select(date, load)
+
+# Save forecast in the output folder 
+write.csv(NN_forecast22, "Output/NN_forecast22.csv", row.names = FALSE)
+```
+
+### Model 6: ARIMA + FOURIER terms + Exo 
+```{r daily forecast for 2011, message=FALSE, warning=FALSE}
+# Generate Fourier + exogenous variables for model fitting
+fourier_full <- fourier(ts_Daily_Electricity_fulltrain, K = c(2, 3))
+temp_full <- as.numeric(Daily_Electricity$Daily_temp)
+humidity_full <- as.numeric(Daily_Electricity$Daily_humidity)
+fourier_combinedfull <- cbind(fourier_full, temp = temp_full, humidity = humidity_full)
+
+# Generate Fourier + exogenous variables for forecasting
+fourier_forfull <- fourier(ts_Daily_Electricity_fulltrain, K = c(2, 3), h = 59)
+temp_forfull <- as.numeric(Daily_Electricity$Daily_temp)
+humidity_forfull <- as.numeric(Daily_Electricity$Daily_humidity)
+fourier_combined_forfull <- cbind(fourier_forfull, temp = temp_forfull, humidity = humidity_forfull)
+
+# Match column names
+colnames(fourier_combined_forfull) <- colnames(fourier_combinedfull)
+
+# Fit and Forecast Model
+ARIMA_Fourexo_fit_fulltrain <- auto.arima(ts_Daily_Electricity_fulltrain, 
+                                 seasonal = FALSE, 
+                                 lambda = 0,
+                                 xreg = fourier_combinedfull)
+
+ARIMA_Fourexo_for_fulltrain <- forecast(ARIMA_Fourexo_fit_fulltrain,
+                               xreg = fourier_combined_forfull,
+                               h = 59)
+
+# Plot foresting results
+autoplot(ARIMA_Fourexo_for_fulltrain) +
+  ylab("Total Electricity Demand for Jan to Feb 2011") 
+
+# Plot model + observed data
+autoplot(ts_Daily_Electricity[,1]) +
+  autolayer(ARIMA_Fourexo_for_fulltrain, series="ARIMA + Fourier + Exo Model Full Train",PI=FALSE)+
+  ylab("Total Electricity Demand for Jan to Feb 2011") 
+
+# Save forecast values in the data file
+ARIMA_Fourexo_forecast <- as.data.frame(ARIMA_Fourexo_for_fulltrain$mean) %>%
+  rename(load = 1) %>% 
+  mutate(date = seq.Date(from = as.Date("2011-01-01"), 
+                         by = "day", 
+                         length.out = 59),
+         load = round(load)) %>%
+  select(date, load)
+
+# Save forecast in the output folder 
+write.csv(ARIMA_Fourexo_forecast, "Output/ARIMA_Fourexo_forecast.csv", row.names = FALSE)
+```
+
+### Model 7: Neural Network [2,2] + Exo
+```{r daily forecast for 2011, message=FALSE, warning=FALSE}
+# Generate Fourier + exogenous variables for model fitting
+fourier_nnfull <- fourier(ts_Daily_Electricity_fulltrain, K = c(2, 2))
+temp_nnfull <- as.numeric(Daily_Electricity$Daily_temp)
+humidity_nnfull <- as.numeric(Daily_Electricity$Daily_humidity)
+fourier_nncombinedfull <- cbind(fourier_nnfull, temp = temp_nnfull, humidity = humidity_nnfull)
+
+# Generate Fourier + exogenous variables for forecasting
+fourier_nnforfull <- fourier(ts_Daily_Electricity_fulltrain, K = c(2, 2), h = 59)
+temp_nnforfull <- as.numeric(Daily_Electricity$Daily_temp)
+humidity_nnforfull <- as.numeric(Daily_Electricity$Daily_humidity)
+fourier_combined_nnforfull <- cbind(fourier_nnforfull, temp = temp_nnforfull, humidity = humidity_nnforfull)
+# Match column names between training and forecast xreg
+colnames(fourier_combined_nnforfull) <- colnames(fourier_nncombinedfull)
+
+# Fit and Forecast the model 
+NNexo_fit22_fulltrain <- nnetar(ts_Daily_Electricity_fulltrain,
+                      p = 1,
+                      P = 0,
+                      xreg = fourier_nncombinedfull)
+
+NNexo_for22_fulltrain <- forecast(NNexo_fit22_fulltrain,
+                        h = 59,
+                        xreg = fourier_combined_nnforfull)
+
+# Plot foresting results
+autoplot(NNexo_for22_fulltrain) +
+  ylab("Total Electricity Demand for Jan to Feb 2011") 
+
+# Plot model + observed data
+autoplot(ts_Daily_Electricity[,1]) +
+  autolayer(NNexo_for22_fulltrain, series="Neural Network [22] + Exo Full Train",PI=FALSE)+
+  ylab("Total Electricity Demand for Jan to Feb 2011") 
+
+# Save forecast values in the data file
+NNexo_forecast22 <- as.data.frame(NNexo_for22_fulltrain$mean) %>%
+  rename(load = 1) %>%
+  mutate(date = seq.Date(from = as.Date("2011-01-01"), 
+                         by = "day", 
+                         length.out = 59),
+         load = round(load)) %>%
+  select(date, load)
+
+# Save forecast in the output folder 
+write.csv(NNexo_forecast22, "Output/NNexo_forecast22.csv", row.names = FALSE)
+```
+
+
