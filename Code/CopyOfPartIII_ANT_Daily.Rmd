@@ -704,12 +704,12 @@ write.csv(NN_forecast22, "Output/NN_forecast22.csv", row.names = FALSE)
 ```
 
 ### Forecasting Temperature and Humidity 
-```{r forecasting tempereature and humidity}
+```{r forecasting humidity}
 # Create time series for only Feb 2010 
 ts_Daily_Humidity <- ts_Daily_Electricity[,2]
 
 # Use Models
-ETS_Hum <-  stlf(ts_Daily_Humidity, h = 59)
+ETS_fit_Hum <-  stlf(ts_Daily_Humidity, h = 59)
 
 ARIMA_Four_fit_Hum <- auto.arima(ts_Daily_Humidity, seasonal=FALSE, lambda=0,
                                  xreg=fourier(ts_Daily_Humidity, K=c(2,3)))
@@ -727,6 +727,73 @@ NN_fit23_Hum <- nnetar(ts_Daily_Humidity, p=1, P=0,
 NN_for23_Hum <- forecast(NN_fit23_Hum, h=59, 
                                xreg=fourier(ts_Daily_Humidity, K=c(2,3),h=59))
 
+# Accuracy Tests 
+ETS_Hum <- accuracy(ETS_fit_Hum)  
+ARIMA_Hum <- accuracy(ARIMA_Four_for_Hum)
+TBATS_Hum <- accuracy(TBATS_for_Hum)
+NN_Hum <- accuracy(NN_for23_Hum)
+
+# Create data frame
+scores_Hum <- as.data.frame(
+  rbind(ETS_Hum, ARIMA_Hum, TBATS_Hum, NN_Hum))
+row.names(scores_Hum) <- c("STL+ETS", "ARIMA+Fourier","TBATS","NN23")
+
+# Choose model with lowest MAPE
+best_model_index <- which.min(scores_Hum[,"MAPE"])
+cat("The best model by MAPE is:", row.names(scores_Hum[best_model_index,])) # STL + ETS is the best model. 
+
+# Forecast humidity for Jan and Feb 2011 
+Hum_2011 <- as.data.frame(ETS_fit_Hum$mean) %>%
+  rename(Forcast_Hum = 1) %>%  
+  mutate(date = seq.Date(from = as.Date("2011-01-01"), 
+                         by = "day", length.out = 59)) %>%  
+  select(date, Forcast_Hum)
+```
+
+```{r forecasting temperature}
+# Create time series for only Feb 2010 
+ts_Daily_Temp <- ts_Daily_Electricity[,3]
+
+# Use Models
+ETS_fit_Temp <-  stlf(ts_Daily_Temp, h = 59)
+
+ARIMA_Four_fit_Temp <- auto.arima(ts_Daily_Temp, seasonal=FALSE, lambda=0,
+                                 xreg=fourier(ts_Daily_Temp, K=c(2,3)))
+
+ARIMA_Four_for_Temp <- forecast(ARIMA_Four_fit_Temp,
+                               xreg=fourier(ts_Daily_Temp,
+                                            K=c(2,3), h=59), h=59)
+
+TBATS_fit_Temp <- tbats(ts_Daily_Temp)
+TBATS_for_Temp <- forecast(TBATS_fit_Temp, h=59)
+
+NN_fit23_Temp<- nnetar(ts_Daily_Temp, p=1, P=0,
+                             xreg=fourier(ts_Daily_Temp, K=c(2,3)))
+
+NN_for23_Temp <- forecast(NN_fit23_Hum, h=59, 
+                               xreg=fourier(ts_Daily_Temp, K=c(2,3),h=59))
+
+# Accuracy Tests 
+ETS_Temp <- accuracy(ETS_fit_Temp)  
+ARIMA_Temp <- accuracy(ARIMA_Four_for_Temp)
+TBATS_Temp <- accuracy(TBATS_for_Temp)
+NN_Temp <- accuracy(NN_for23_Temp)
+
+# Create data frame
+scores_Temp <- as.data.frame(
+  rbind(ETS_Temp, ARIMA_Temp, TBATS_Temp, NN_Temp))
+row.names(scores_Temp) <- c("STL+ETS", "ARIMA+Fourier","TBATS","NN23")
+
+# Choose model with lowest MAPE
+best_model_index <- which.min(scores_Temp[,"MAPE"])
+cat("The best model by MAPE is:", row.names(scores_Hum[best_model_index,])) # STL + ETS is the best model. 
+
+# Forecast humidity for Jan and Feb 2011 
+Temp_2011 <- as.data.frame(ETS_fit_Temp$mean) %>%
+  rename(Forcast_Temp = 1) %>%  
+  mutate(date = seq.Date(from = as.Date("2011-01-01"), 
+                         by = "day", length.out = 59)) %>%  
+  select(date, Forcast_Temp)
 ```
 
 ### Model 6: ARIMA + FOURIER terms + TempHum 
@@ -739,8 +806,8 @@ fourier_combinedfull <- cbind(fourier_full, temp = temp_full, humidity = humidit
 
 # Generate Fourier + exogenous variables for forecasting
 fourier_forfull <- fourier(ts_Daily_Electricity_fulltrain, K = c(2, 3), h = 59)
-temp_forfull <- as.numeric(Daily_Electricity$Daily_temp)
-humidity_forfull <- as.numeric(Daily_Electricity$Daily_humidity)
+temp_forfull <- as.numeric(Temp_2011$Forcast_Temp)
+humidity_forfull <- as.numeric(Hum_2011$Forcast_Hum)
 fourier_combined_forfull <- cbind(fourier_forfull, temp = temp_forfull, humidity = humidity_forfull)
 
 # Match column names
@@ -787,7 +854,7 @@ fourier_combinedfullT <- cbind(fourier_fullT, temp = temp_fullT)
 
 # Generate Fourier + exogenous variables for forecasting
 fourier_forfullT <- fourier(ts_Daily_Electricity_fulltrain, K = c(2, 3), h = 59)
-temp_forfullT <- as.numeric(Daily_Electricity$Daily_temp)
+temp_forfullT <- as.numeric(Temp_2011$Forcast_Temp)
 fourier_combined_forfullT <- cbind(fourier_forfullT, temp = temp_forfullT)
 
 # Match column names
@@ -835,8 +902,8 @@ fourier_nncombinedfull <- cbind(fourier_nnfull, temp = temp_nnfull, humidity = h
 
 # Generate Fourier + exogenous variables for forecasting
 fourier_nnforfull <- fourier(ts_Daily_Electricity_fulltrain, K = c(2, 2), h = 59)
-temp_nnforfull <- as.numeric(Daily_Electricity$Daily_temp)
-humidity_nnforfull <- as.numeric(Daily_Electricity$Daily_humidity)
+temp_nnforfull <- as.numeric(Temp_2011$Forcast_Temp)
+humidity_nnforfull <- as.numeric(Hum_2011$Forcast_Hum)
 fourier_combined_nnforfull <- cbind(fourier_nnforfull, temp = temp_nnforfull, humidity = humidity_nnforfull)
 # Match column names between training and forecast xreg
 colnames(fourier_combined_nnforfull) <- colnames(fourier_nncombinedfull)
@@ -883,8 +950,8 @@ fourier_nncombinedfullT <- cbind(fourier_nnfullT, temp = temp_nnfullT, humidity 
 
 # Generate Fourier + exogenous variables for forecasting
 fourier_nnforfullT <- fourier(ts_Daily_Electricity_fulltrain, K = c(2, 3), h = 59)
-temp_nnforfullT <- as.numeric(Daily_Electricity$Daily_temp)
-humidity_nnforfullT <- as.numeric(Daily_Electricity$Daily_humidity)
+temp_nnforfullT <- as.numeric(Temp_2011$Forcast_Temp)
+humidity_nnforfullT <- as.numeric(Hum_2011$Forcast_Hum)
 fourier_combined_nnforfullT <- cbind(fourier_nnforfullT, temp = temp_nnforfullT, humidity = humidity_nnforfullT)
 # Match column names between training and forecast xreg
 colnames(fourier_combined_nnforfullT) <- colnames(fourier_nncombinedfullT)
