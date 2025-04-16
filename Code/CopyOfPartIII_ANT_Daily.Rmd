@@ -703,6 +703,32 @@ NN_forecast22 <- as.data.frame(NN_for22_fulltrain$mean) %>%
 write.csv(NN_forecast22, "Output/NN_forecast22.csv", row.names = FALSE)
 ```
 
+### Forecasting Temperature and Humidity 
+```{r forecasting tempereature and humidity}
+# Create time series for only Feb 2010 
+ts_Daily_Humidity <- ts_Daily_Electricity[,2]
+
+# Use Models
+ETS_Hum <-  stlf(ts_Daily_Humidity, h = 59)
+
+ARIMA_Four_fit_Hum <- auto.arima(ts_Daily_Humidity, seasonal=FALSE, lambda=0,
+                                 xreg=fourier(ts_Daily_Humidity, K=c(2,3)))
+
+ARIMA_Four_for_Hum <- forecast(ARIMA_Four_fit_Hum,
+                               xreg=fourier(ts_Daily_Humidity,
+                                            K=c(2,3), h=59), h=59)
+
+TBATS_fit_Hum <- tbats(ts_Daily_Humidity)
+TBATS_for_Hum <- forecast(TBATS_fit_Hum, h=59)
+
+NN_fit23_Hum <- nnetar(ts_Daily_Humidity, p=1, P=0,
+                             xreg=fourier(ts_Daily_Humidity, K=c(2,3)))
+
+NN_for23_Hum <- forecast(NN_fit23_Hum, h=59, 
+                               xreg=fourier(ts_Daily_Humidity, K=c(2,3),h=59))
+
+```
+
 ### Model 6: ARIMA + FOURIER terms + TempHum 
 ```{r daily forecast for 2011, message=FALSE, warning=FALSE}
 # Generate Fourier + exogenous variables for model fitting
