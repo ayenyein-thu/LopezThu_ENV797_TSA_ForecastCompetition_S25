@@ -769,13 +769,13 @@ colnames(fourier_combined_forfullT) <- colnames(fourier_combinedfullT)
 
 # Fit and Forecast Model
 ARIMA_Fourexo_fit_fulltrainT <- auto.arima(ts_Daily_Electricity_fulltrain, 
-                                 seasonal = FALSE, 
-                                 lambda = 0,
-                                 xreg = fourier_combinedfullT)
+                                           seasonal = FALSE, 
+                                           lambda = 0,
+                                           xreg = fourier_combinedfullT)
 
 ARIMA_Fourexo_for_fulltrainT <- forecast(ARIMA_Fourexo_fit_fulltrainT,
-                               xreg = fourier_combined_forfullT,
-                               h = 59)
+                                         xreg = fourier_combined_forfullT,
+                                         h = 59)
 
 # Plot foresting results
 autoplot(ARIMA_Fourexo_for_fulltrainT) +
