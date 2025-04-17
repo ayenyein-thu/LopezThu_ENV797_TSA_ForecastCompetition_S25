@@ -96,6 +96,24 @@ Daily_Temperature  <- Hourly_Temperature %>%
   summarise(Daily_temp = mean(Hourly_temp)) 
 ```
 
+## Weighted Average 
+```{r}
+Daily_Demand <- Hourly_Demand %>%
+  filter(!is.na(Hourly_demand)) %>%
+  mutate(
+    weight = case_when(
+      Hour >= 6 & Hour <= 9 ~ 2,      # Morning peak
+      Hour >= 17 & Hour <= 20 ~ 2,    # Evening peak
+      TRUE ~ 1                        # Normal hours
+    )
+  ) %>%
+  group_by(Date) %>%
+  summarise(
+    Daily_demand_avg = mean(Hourly_demand),                                    
+    Daily_demand_weighted = sum(Hourly_demand * weight) / sum(weight)          
+  )
+```
+
 ## Data Wrangling 
 ```{r combining data set, results='hide', warning=FALSE, message=FALSE}
 # Combine the hourly data set
@@ -133,12 +151,12 @@ ts_Hourly_Electricity <- msts(Hourly_Electricity[,3:5],
                              seasonal.periods = c(24,168,8766),
                              start = c(2005, 1, 1, 1)) # Added the hour
 
-ts_Daily_Electricity <- msts(Daily_Electricity[,2:4], 
+ts_Daily_Electricity <- msts(Daily_Electricity[,2:5], 
                              seasonal.periods = c(7, 365.25),
                              start = c(2005, 1, 1))
 ```
 
-## Handling missing values and outliers
+## Handling missing values and outliers - Need to work on it. 
 ```{r missing values and outliers, warning=FALSE, message=FALSE}
 # Check missing values 
 sum(is.na(ts_Hourly_Electricity))
@@ -170,7 +188,7 @@ autoplot(ts_Hourly_Electricity[,1], series="Raw Data") +
 ```{r daily data set decompose, message=FALSE, warning=FALSE}
 # Daily Data Set
 # Decompose the time series
-ts_Daily_Electricity_decompose <- mstl(ts_Daily_Electricity[,1])
+ts_Daily_Electricity_decompose <- mstl(ts_Daily_Electricity[,2])
 autoplot(ts_Daily_Electricity_decompose)
 ```
 
@@ -178,8 +196,8 @@ autoplot(ts_Daily_Electricity_decompose)
 n_for = 59
 
 # Create time series for only Feb 2010 
-ts_Daily_Electricity_Feb <- subset(ts_Daily_Electricity[,1],
-                                   end = length(ts_Daily_Electricity[,1])-(365-n_for))
+ts_Daily_Electricity_Feb <- subset(ts_Daily_Electricity[,2],
+                                   end = length(ts_Daily_Electricity[,2])-(365-n_for))
 
 # Create a subset for training purpose
 ts_Daily_Electricity_train <- subset(ts_Daily_Electricity_Feb,
@@ -302,7 +320,7 @@ autoplot(ts_Daily_Electricity_Feb) +
   ylab("Total Electricity Demand") 
 ```
 
-#### Exogenous Variables 
+#### Exogenous Variables - Did not work on it
 ```{r VIF test}
 # Correlation Test 
 cor.test(Daily_Electricity$Daily_demand, Daily_Electricity$Daily_temp) # Weak negative correlation
@@ -564,7 +582,7 @@ autoplot(ts_Daily_Electricity_test) +
 ## Forecasting for 2011 with fulltrain data set
 ```{r create full train time series, message=FALSE, warning=}
 # Create the time series to retain full data set
-ts_Daily_Electricity_fulltrain <- ts_Daily_Electricity[,1]
+ts_Daily_Electricity_fulltrain <- ts_Daily_Electricity[,2]
 ```
 
 ### Model 1: STL + ETS
@@ -1036,7 +1054,7 @@ autoplot(ts_Daily_Electricity[,1]) +
   ylab("Total Electricity Demand for Jan to Feb 2011") 
 
 # Save forecast values in the data file
-NN_forecast223 <- as.data.frame(NN_for223_fulltrain$mean) %>%
+NN_forecast223WA <- as.data.frame(NN_for223_fulltrain$mean) %>%
   rename(load = 1) %>%
   mutate(date = seq.Date(from = as.Date("2011-01-01"), 
                          by = "day", 
@@ -1045,6 +1063,6 @@ NN_forecast223 <- as.data.frame(NN_for223_fulltrain$mean) %>%
   select(date, load)
 
 # Save forecast in the output folder 
-write.csv(NN_forecast223, "Output/NN_forecast223.csv", row.names = FALSE)
+write.csv(NN_forecast223WA, "Output/NN_forecast223WA.csv", row.names = FALSE)
 ```
 
