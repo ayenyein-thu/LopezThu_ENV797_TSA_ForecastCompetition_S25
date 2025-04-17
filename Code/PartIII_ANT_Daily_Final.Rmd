@@ -987,3 +987,35 @@ NNexo_forecast23 <- as.data.frame(NNexo_for23_fulltrain$mean) %>%
 # Save forecast in the output folder 
 write.csv(NNexo_forecast23, "Output/NNexo_forecast23.csv", row.names = FALSE)
 ```
+
+```{r daily forecast for 2011, message=FALSE, warning=FALSE}
+## Fit and Forecast the full trained Neural Model 22
+NN_fit223_fulltrain <- nnetar(ts_Daily_Electricity_fulltrain,
+                 p=3,
+                 P=0,
+                 xreg=fourier(ts_Daily_Electricity_fulltrain, K=c(2,2)))
+
+NN_for223_fulltrain <- forecast(NN_fit223_fulltrain, h=59,xreg=fourier(ts_Daily_Electricity_fulltrain, 
+                                          K=c(2,2),h=59))
+
+# Plot foresting results
+autoplot(NN_for223_fulltrain) +
+  ylab("Total Electricity Demand for Jan to Feb 2011") 
+
+# Plot model + observed data
+autoplot(ts_Daily_Electricity[,1]) +
+  autolayer(NN_for223_fulltrain, series="Neural Network Full Train",PI=FALSE)+
+  ylab("Total Electricity Demand for Jan to Feb 2011") 
+
+# Save forecast values in the data file
+NN_forecast223 <- as.data.frame(NN_for223_fulltrain$mean) %>%
+  rename(load = 1) %>%
+  mutate(date = seq.Date(from = as.Date("2011-01-01"), 
+                         by = "day", 
+                         length.out = 59),
+         load = round(load)) %>%
+  select(date, load)
+
+# Save forecast in the output folder 
+write.csv(NN_forecast223, "Output/NN_forecast223.csv", row.names = FALSE)
+```
