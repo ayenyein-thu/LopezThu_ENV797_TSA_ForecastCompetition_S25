@@ -736,7 +736,7 @@ autoplot(ts_Daily_Electricity[,1]) +
   ylab("Total Electricity Demand for Jan to Feb 2011") 
 
 # Save forecast values in the data file
-NN_forecast22 <- as.data.frame(NN_for22_fulltrain$mean) %>%
+NN_forecast22WA <- as.data.frame(NN_for22_fulltrain$mean) %>%
   rename(load = 1) %>%
   mutate(date = seq.Date(from = as.Date("2011-01-01"), 
                          by = "day", 
@@ -745,7 +745,7 @@ NN_forecast22 <- as.data.frame(NN_for22_fulltrain$mean) %>%
   select(date, load)
 
 # Save forecast in the output folder 
-write.csv(NN_forecast22, "Output/NN_forecast22.csv", row.names = FALSE)
+write.csv(NN_forecast22WA, "Output/NN_forecast22WA.csv", row.names = FALSE)
 ```
 
 ### Forecasting Temperature and Humidity 
