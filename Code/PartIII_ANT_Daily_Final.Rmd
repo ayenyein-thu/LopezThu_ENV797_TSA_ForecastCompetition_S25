@@ -478,7 +478,7 @@ autoplot(NN_for223) +
 
 #Plot model + observed data
 autoplot(ts_Daily_Electricity_Feb) +
-  autolayer(NN_for232, series="Neural Network 223",PI=FALSE)+
+  autolayer(NN_for223, series="Neural Network 223",PI=FALSE)+
   ylab("Total Electricity Demand") 
 ```
 
@@ -550,7 +550,7 @@ autoplot(ts_Daily_Electricity_test) +
   autolayer(ETS_fit, PI=FALSE, series="STL+ETS") +
   autolayer(ARIMA_Four_for, PI=FALSE, series="ARIMA + Fourier") +
   autolayer(TBATS_for,PI=FALSE, series="TBATS") +
-  autolayer(NN_for23,PI=FALSE, series="NN") +
+  autolayer(NN_for23,PI=FALSE, series="NN23") +
   autolayer(NN_for22,PI=FALSE, series="NN22") +
   autolayer(ARIMA_Fourexo_for, PI=FALSE, series="ARIMA + Fourier + TempHum") +
   autolayer(ARIMA_Fourexo_forT, PI=FALSE, series="ARIMA + Fourier + Temp") +
@@ -1015,7 +1015,7 @@ NNexo_forecast23 <- as.data.frame(NNexo_for23_fulltrain$mean) %>%
 write.csv(NNexo_forecast23, "Output/NNexo_forecast23.csv", row.names = FALSE)
 ```
 
-### Model 10: Neural Network [322]
+### Model 10: Neural Network [223]
 ```{r daily forecast for 2011, message=FALSE, warning=FALSE}
 ## Fit and Forecast the full trained Neural Model 22
 NN_fit223_fulltrain <- nnetar(ts_Daily_Electricity_fulltrain,
@@ -1046,5 +1046,34 @@ NN_forecast223 <- as.data.frame(NN_for223_fulltrain$mean) %>%
 
 # Save forecast in the output folder 
 write.csv(NN_forecast223, "Output/NN_forecast223.csv", row.names = FALSE)
+```
+
+### Model 11: Neural Network [223] + TBATS 
+```{r}
+stl <- as.numeric(ETS_fit_fulltrain$mean)
+nn223 <- as.numeric(NN_for223_fulltrain$mean)
+
+avg <- (stl + nn223) / 2
+
+# Create date index for forecast
+start_date <- as.Date(paste0(end(Daily_Electricity$Date)[1] + 1, "-", end(Daily_Electricity$Date)[2], "-01")) 
+forecast_dates <- seq(from = as.Date("2011-01-01"), by = "day", length.out = n_for)
+
+Combined <- tibble(
+  date = forecast_dates,
+  load = avg
+)
+
+ggplot(Combined, aes(x = date, y = load)) +
+  geom_line(color = "blue") +
+  labs(
+    title = "Forecasted Load Over Time",
+    x = "Date",
+    y = "Average Load"
+  ) +
+  theme_minimal()
+
+# Save forecast in the output folder 
+write.csv(Combined, "Output/Combined.csv", row.names = FALSE)
 ```
 
