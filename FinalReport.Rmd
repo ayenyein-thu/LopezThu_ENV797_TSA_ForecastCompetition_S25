@@ -414,11 +414,11 @@ write.csv(NN_forecast121, "Output/NN_forecast121.csv", row.names = FALSE)
 
 ```{r, echo=FALSE}
 # Fit NN Model
-NN_fit121_H <- nnetar(ts_Cleaned_HDemand_train, p=1, P=0,
-                 xreg=fourier(ts_Cleaned_HDemand_train, K=c(1,2,3)))
+NN_fit121_H <- nnetar(ts_Cleaned_HDemand_train, p=24, P=1,
+                 xreg=fourier(ts_Cleaned_HDemand_train, K=c(1,1,1)))
 
 NN_for121_H <- forecast(NN_fit121_H, h=1416, xreg=fourier(ts_Cleaned_HDemand_train, 
-                                          K=c(1,2,3), h=1416))
+                                          K=c(1,1,1), h=1416))
 
 # Plot forecasting results
 autoplot(NN_for121_H) +
@@ -430,12 +430,12 @@ autoplot(ts_Cleaned_HDemand_Feb) +
   ylab("Total Electricity Demand (MW)") 
 
 # Fit and Forecast the full trained model
-NN_fit121_fulldataset_H <- nnetar(Cleaned_HDemand, p=1, P=0,
-                                xreg=fourier(Cleaned_HDemand, K=c(1,2,3)))
+NN_fit121_fulldataset_H <- nnetar(Cleaned_HDemand, p=24, P=1,
+                                xreg=fourier(Cleaned_HDemand, K=c(1,1,1)))
 
 NN_for121_fulldataset_H <- forecast(NN_fit121_fulldataset_H, h=1416,
                                 xreg=fourier(Cleaned_HDemand, 
-                                          K=c(1,2,3), h=1416))
+                                          K=c(1,1,1), h=1416))
 
 # Plot forecasting results
 autoplot(NN_for121_fulldataset_H) +
@@ -460,7 +460,7 @@ NN_forecast121_H <- as.data.frame(NN_for121_fulldataset_H$mean) %>%
 NN_forecast121_H <- NN_forecast121_H[-nrow(NN_forecast121_H), ]
 
 # Save forecast in the output folder 
-write.csv(NN_forecast121_H, "Output/NN_forecast121_hourly.csv", row.names = FALSE)
+write.csv(NN_forecast121_H, "Output/NN_forecast24_1_111_hourly.csv", row.names = FALSE)
 
 ```
 
