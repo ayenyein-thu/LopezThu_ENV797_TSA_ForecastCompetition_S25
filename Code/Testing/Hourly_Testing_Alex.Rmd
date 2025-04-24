@@ -429,38 +429,6 @@ autoplot(ts_Cleaned_HDemand_Feb) +
   autolayer(NN_for121_H6, series="Neural Network 121H", PI=FALSE) +
   ylab("Total Electricity Demand (MW)") 
 
-# Fit and Forecast the full trained model
-NN_fit121_fulldataset_H6 <- nnetar(Cleaned_HDemand, p=24, P=0,
-                                xreg=fourier(Cleaned_HDemand, K=c(3,2,1)))
-
-NN_for121_fulldataset_H6 <- forecast(NN_fit121_fulldataset_H6, h=1416,
-                                xreg=fourier(Cleaned_HDemand, 
-                                          K=c(3,2,1), h=1416))
-
-# Plot forecasting results
-autoplot(NN_for121_fulldataset_H6) +
-  ylab("Total Electricity Demand (MW)") 
-
-# Plot model + observed data
-autoplot(Cleaned_HDemand) +
-  autolayer(NN_for121_fulldataset_H6, series="Neural Network Final Forecast", PI=FALSE) +
-  ylab("Total Electricity Demand (MW)") 
-
-# Save forecast values in the data file
-NN_forecast121_H6 <- as.data.frame(NN_for121_fulldataset_H6$mean) %>%
-  rename(load_hourly = 1) %>%
-  mutate(datetime = seq.POSIXt(from = as.POSIXct("2011-01-01 00:00:00"),
-                               by = "hour", 
-                               length.out = n())) %>%
-  mutate(date = as.Date(datetime)) %>%
-  group_by(date) %>%
-  summarise(load = round(mean(load_hourly)), .groups = "drop") %>%
-  select(date, load)
-
-NN_forecast121_H6 <- NN_forecast121_H6[-nrow(NN_forecast121_H6), ]
-
-# Save forecast in the output folder 
-write.csv(NN_forecast121_H6, "Output/NN_forecast321p24_hourly.csv", row.names = FALSE)
 
 ```
 
@@ -491,3 +459,51 @@ scores <- as.data.frame(
 row.names(scores) <- c("NNm6", "NNm7", "NNm8", "NNm9")
 ```
 
+```{r}
+library(forecast)
+library(tidyverse)
+library(Metrics) # for rmse
+#install.packages("Metrics")
+
+# Parameters to test
+p_vals <- c(12, 24, 48)
+P_vals <- c(0, 1)
+K_vals <- list(c(2,1,1), c(3,2,1), c(3,3,1), c(4,2,2))
+
+# Store results
+results <- data.frame()
+
+# msts object: ts_Cleaned_HDemand_train (train) and ts_Cleaned_HDemand_test (test) already defined
+x_test <- ts_Cleaned_HDemand_test
+
+for (p in p_vals) {
+  for (P in P_vals) {
+    for (K in K_vals) {
+      cat("Testing p =", p, ", P =", P, ", K =", toString(K), "\n")
+      
+      try({
+        # Fit the model
+        fit <- nnetar(ts_Cleaned_HDemand_train, p = p, P = P,
+                      xreg = fourier(ts_Cleaned_HDemand_train, K = K))
+        
+        # Forecast
+        fcast <- forecast(fit, h = length(x_test),
+                          xreg = fourier(ts_Cleaned_HDemand_train, K = K, h = length(x_test)))
+        
+        # Compute RMSE
+        current_rmse <- rmse(as.numeric(x_test), as.numeric(fcast$mean))
+        
+        # Store results
+        results <- rbind(results, data.frame(p = p,
+                                             P = P,
+                                             K = paste(K, collapse = "-"),
+                                             RMSE = current_rmse))
+      }, silent = TRUE)
+    }
+  }
+}
+
+# Sort by RMSE
+results <- results %>% arrange(RMSE)
+print(results)
+```
