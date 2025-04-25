@@ -2,13 +2,16 @@
 title: "Final Report for Load Forecasting Competition"
 subtitle: https://github.com/ayenyein-thu/LopezThu_ENV797_TSA_ForecastCompetition_S25/
 author: "Aye Nyein Thu, Alex Lopez"
-output: pdf_document
+output: 
+  pdf_document:
+    toc: true
+    toc_depth: 2
+    number_sections: true
 geometry: margin=2.54cm
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-
 ```
 
 ```{r, include=FALSE}
@@ -29,9 +32,10 @@ library(kableExtra)
 library(car)
 ```
 
+\newpage
 # Importing Data
 
-```{r, echo=FALSE}
+```{r echo=TRUE}
 Demand <- read_excel(path = "./Data/Raw/load.xlsx", sheet = "Sheet1", 
                      col_names = TRUE)
 
@@ -47,7 +51,7 @@ Temperature <- read_excel(path = "./Data/Raw/temperature.xlsx", sheet = "Sheet1"
 
 ## Demand
 
-```{r, echo=FALSE}
+```{r echo=TRUE}
 # Format the hourly data set
 Hourly_Demand <- Demand %>%
   pivot_longer(cols = starts_with("h"), names_to = "hour", values_to = "Hourly_demand") %>%
@@ -55,7 +59,7 @@ Hourly_Demand <- Demand %>%
   mutate(Date = ymd(date)) %>% 
   select(Date, Hour, Hourly_demand)
 
-summary(Hourly_Demand) # Note the 6 NA's
+#summary(Hourly_Demand) # 6 NA's
  
 # Format the daily data set 
 Daily_Demand  <- Hourly_Demand %>%
@@ -67,7 +71,7 @@ Daily_Demand  <- Hourly_Demand %>%
 
 ## Humidity
 
-```{r, echo=FALSE}
+```{r echo=TRUE}
 # Format the hourly data set
 Hourly_Humidity <- Humidity %>%
   mutate(Date = ymd(date), Hour = hr, 
@@ -83,7 +87,7 @@ Daily_Humidity  <- Hourly_Humidity %>%
 
 ## Temperature
 
-```{r, echo=FALSE}
+```{r echo=TRUE}
 # Format the hourly data set
 Hourly_Temperature <- Temperature %>%
   mutate(Date = ymd(date), Hour = hr, 
@@ -98,13 +102,14 @@ Daily_Temperature  <- Hourly_Temperature %>%
 ```
 
 ## Combining Daily and Hourly Data Sets
-```{r, echo=FALSE}
+
+```{r echo=TRUE}
 # Combine the hourly data set
 Hourly_Electricity <- Hourly_Demand %>% 
   left_join(Hourly_Humidity, by = c("Date", "Hour")) %>% 
   left_join(Hourly_Temperature, by = c("Date", "Hour"))
 
-summary(Hourly_Electricity) # Note the 6 NA's
+#summary(Hourly_Electricity) # 6 NA's
   
 # Combine the daily data set using the simple average 
 Daily_Electricity <- Daily_Demand %>% 
@@ -113,9 +118,9 @@ Daily_Electricity <- Daily_Demand %>%
 
 ```
 
-## Creating Time Series Objects
+## Creating Multi-Seasonal Time Series Objects
 
-```{r, echo=FALSE}
+```{r echo=TRUE}
 ts_Hourly_Electricity <- msts(Hourly_Electricity[,3:5], 
                              seasonal.periods = c(24,168,8766),
                              start = c(2005, 1, 1, 1)) # Added the hour
@@ -127,33 +132,34 @@ ts_Daily_Electricity <- msts(Daily_Electricity[,2:4],
 
 ## Handling NA's and Outliers
 
-```{r, echo=FALSE}
+```{r echo=TRUE}
 # Check missing values 
-sum(is.na(ts_Hourly_Electricity))
-sum(is.na(ts_Daily_Electricity))
+#sum(is.na(ts_Hourly_Electricity))
+#sum(is.na(ts_Daily_Electricity))
 
 # Check outlier by test
-outlier(ts_Hourly_Electricity) 
-grubbs.test(ts_Hourly_Electricity[,1]) # outlier 
-grubbs.test(ts_Hourly_Electricity[,2]) # not outlier 
-grubbs.test(ts_Hourly_Electricity[,3]) # not outlier 
+#outlier(ts_Hourly_Electricity) 
+#grubbs.test(ts_Hourly_Electricity[,1]) # outlier 
+#grubbs.test(ts_Hourly_Electricity[,2]) # not outlier 
+#grubbs.test(ts_Hourly_Electricity[,3]) # not outlier 
 
-outlier(ts_Daily_Electricity)
-grubbs.test(ts_Daily_Electricity[,1]) # not outlier 
-grubbs.test(ts_Daily_Electricity[,2]) # not outlier 
-grubbs.test(ts_Daily_Electricity[,3]) # not outlier 
+#outlier(ts_Daily_Electricity)
+#grubbs.test(ts_Daily_Electricity[,1]) # not outlier 
+#grubbs.test(ts_Daily_Electricity[,2]) # not outlier 
+#grubbs.test(ts_Daily_Electricity[,3]) # not outlier 
 
 # Handle NA's and outliers for just the hourly data 
-Cleaned_HDemand <- tsclean(ts_Hourly_Electricity[,1]) 
-outlier(Cleaned_HDemand) 
-grubbs.test(Cleaned_HDemand) # not outlier 
+ts_Hourly_Demand_clean <- tsclean(ts_Hourly_Electricity[,1]) 
+#outlier(ts_Hourly_Demand_clean) 
+#grubbs.test(ts_Hourly_Demand_clean) # not outlier 
 
 ```
 
 ## Setting Training and Testing Windows
 
-```{r, echo=FALSE}
-n_for = 59
+```{r echo=TRUE}
+# DAILY
+n_for = 59 #days for January and February
 
 # Create time series for data up until February 28, 2010
 ts_Daily_Electricity_Feb <- subset(ts_Daily_Electricity[,1],
@@ -168,286 +174,52 @@ ts_Daily_Electricity_test <- subset(ts_Daily_Electricity_Feb,
                                    start = length(ts_Daily_Electricity_Feb)-n_for+1)
 
 
-# Print first 5 and last 5 rows to cross-check with figures from original Daily_Electricity df
-head(ts_Daily_Electricity_train, 5)
-tail(ts_Daily_Electricity_train, 5)
+# Print first 5 and last 5 rows to cross-check with original Daily_Electricity df
+#head(ts_Daily_Electricity_train, 5)
+#tail(ts_Daily_Electricity_train, 5)
 
-head(ts_Daily_Electricity_test, 5)
-tail(ts_Daily_Electricity_test, 5)
+#head(ts_Daily_Electricity_test, 5)
+#tail(ts_Daily_Electricity_test, 5)
 
-# Create a subset for training purpose
+# HOURLY
 n_forH = 1416 # 59 days x 24 hours 
 
 # Create time series for data up until February 28, 2010
-ts_Cleaned_HDemand_Feb <- subset(Cleaned_HDemand,
-                                   end = length(Cleaned_HDemand)-(8760-n_forH))
+ts_Hourly_Demand_Feb <- subset(ts_Hourly_Demand_clean,
+                                   end = length(ts_Hourly_Demand_clean)-(8760-n_forH))
 
 # Create a subset for training purposes (from January 1, 2005 to December 31, 2009)
-ts_Cleaned_HDemand_train <- subset(ts_Cleaned_HDemand_Feb,
-                                   end = length(ts_Cleaned_HDemand_Feb)-n_forH)
+ts_Hourly_Demand_train <- subset(ts_Hourly_Demand_Feb,
+                                   end = length(ts_Hourly_Demand_Feb)-n_forH)
 
 # Create a subset for testing purposes (from January 1, 2010 to February 28, 2010)
-ts_Cleaned_HDemand_test <- subset(ts_Cleaned_HDemand_Feb,
-                                   start = length(ts_Cleaned_HDemand_Feb)-n_forH+24)
+ts_Hourly_Demand_test <- subset(ts_Hourly_Demand_Feb,
+                                   start = length(ts_Hourly_Demand_Feb)-n_forH+24)
 
 ```
 
 # 5 Best-Performing Models
 
-## Model 1: Neural Network [223]
+## Model 1: Neural Network with Hourly Data [p=24, P=0, K=c(1,1,1)]
 
-```{r, echo=FALSE}
+```{r echo=TRUE}
 # Fit NN Model
-NN_fit223 <- nnetar(ts_Daily_Electricity_train, p=3, P=0,
-                 xreg=fourier(ts_Daily_Electricity_train, K=c(2,2)))
+model1_fit <- nnetar(ts_Hourly_Demand_train, p=24, P=0,
+                 xreg=fourier(ts_Hourly_Demand_train, K=c(1,1,1)))
 
-NN_for223 <- forecast(NN_fit223, h=59, xreg=fourier(ts_Daily_Electricity_train, 
-                                          K=c(2,2), h=59))
-
-# Plot forecasting results
-autoplot(NN_for223) +
-  ylab("Total Electricity Demand (MW)") 
-
-# Plot model + observed data
-autoplot(ts_Daily_Electricity_Feb) +
-  autolayer(NN_for223, series="Neural Network 223",PI=FALSE)+
-  ylab("Total Electricity Demand (MW)") 
-
-# Fit and Forecast the full trained model
-NN_fit223_fulldataset <- nnetar(ts_Daily_Electricity[,1], p=3, P=0,
-                 xreg=fourier(ts_Daily_Electricity[,1], K=c(2,2)))
-
-NN_for223_fulldataset <- forecast(NN_fit223_fulldataset, h=59,
-                                xreg=fourier(ts_Daily_Electricity[,1], 
-                                          K=c(2,2), h=59))
-
-# Plot forecasting results
-autoplot(NN_for223_fulldataset) +
-  ylab("Total Electricity Demand (MW)") 
-
-# Plot model + observed data
-autoplot(ts_Daily_Electricity[,1]) +
-  autolayer(NN_for223_fulldataset, series="Neural Network Final Forecast", PI=FALSE) +
-  ylab("Total Electricity Demand (MW)") 
-
-```
-
-## Model 2: Neural Network [2,2]
-
-```{r, echo=FALSE}
-# Fit NN Model
-NN_fit22 <- nnetar(ts_Daily_Electricity_train, p=1, P=0,
-                 xreg=fourier(ts_Daily_Electricity_train, K=c(2,2)))
-
-NN_for22 <- forecast(NN_fit22, h=59, xreg=fourier(ts_Daily_Electricity_train, 
-                                          K=c(2,2), h=59))
-
-
-#Plot forecasting results
-autoplot(NN_for22) +
-  ylab("Total Electricity Demand (MW)") 
-
-#Plot model + observed data
-autoplot(ts_Daily_Electricity_Feb) +
-  autolayer(NN_for22, series="Neural Network 22", PI=FALSE) +
-  ylab("Total Electricity Demand (MW)")
-
-# Fit and Forecast the full trained model
-NN_fit22_fulldataset <- nnetar(ts_Daily_Electricity[,1], p=1, P=0,
-                 xreg=fourier(ts_Daily_Electricity[,1], K=c(2,2)))
-
-NN_for22_fulldataset <- forecast(NN_fit22_fulldataset, h=59, 
-                                 xreg=fourier(ts_Daily_Electricity[,1], 
-                                          K=c(2,2), h=59))
-
-# Plot forecasting results
-autoplot(NN_for22_fulldataset) +
-  ylab("Total Electricity Demand (MW)") 
-
-# Plot model + observed data
-autoplot(ts_Daily_Electricity[,1]) +
-  autolayer(NN_for22_fulldataset, series="Neural Network Final Forecast", PI=FALSE)+
-  ylab("Total Electricity Demand (MW)") 
-
-```
-
-## Model 3: Neural Network [2,3]
-
-```{r, echo=FALSE}
-# Fit NN Model
-NN_fit23 <- nnetar(ts_Daily_Electricity_train, p=1, P=0,
-                 xreg=fourier(ts_Daily_Electricity_train, K=c(2,3)))
-
-NN_for23 <- forecast(NN_fit23, h=59, xreg=fourier(ts_Daily_Electricity_train, 
-                                          K=c(2,3), h=59))
-
-
-#Plot forecasting results
-autoplot(NN_for23) +
-  ylab("Total Electricity Demand (MW)") 
-
-#Plot model + observed data
-autoplot(ts_Daily_Electricity_Feb) +
-  autolayer(NN_for23, series="Neural Network 23", PI=FALSE) +
-  ylab("Total Electricity Demand (MW)")
-
-# Fit and Forecast the full trained model
-NN_fit23_fulldataset <- nnetar(ts_Daily_Electricity[,1], p=1, P=0,
-                 xreg=fourier(ts_Daily_Electricity[,1], K=c(2,3)))
-
-NN_for23_fulldataset <- forecast(NN_fit23_fulldataset, h=59, 
-                                 xreg=fourier(ts_Daily_Electricity[,1], 
-                                          K=c(2,3), h=59))
-
-# Plot forecasting results
-autoplot(NN_for23_fulldataset) +
-  ylab("Total Electricity Demand (MW)") 
-
-# Plot model + observed data
-autoplot(ts_Daily_Electricity[,1]) +
-  autolayer(NN_for23_fulldataset, series="Neural Network Final Forecast", PI=FALSE) +
-  ylab("Total Electricity Demand (MW)") 
-
-```
-
-## Model 4: Neural Network [123]
-
-```{r, echo=FALSE}
-# Fit NN Model
-NN_fit123 <- nnetar(ts_Daily_Electricity_train, p=3, P=0,
-                 xreg=fourier(ts_Daily_Electricity_train, K=c(1,2)))
-
-NN_for123 <- forecast(NN_fit123, h=59, xreg=fourier(ts_Daily_Electricity_train, 
-                                          K=c(1,2), h=59))
-
-# Plot forecasting results
-autoplot(NN_for123) +
-  ylab("Total Electricity Demand (MW)") 
-
-# Plot model + observed data
-autoplot(ts_Daily_Electricity_Feb) +
-  autolayer(NN_for123, series="Neural Network 123", PI=FALSE) +
-  ylab("Total Electricity Demand (MW)") 
-
-# Fit and Forecast the full trained model
-NN_fit123_fulldataset <- nnetar(ts_Daily_Electricity[,1], p=3, P=0,
-                                xreg=fourier(ts_Daily_Electricity[,1], K=c(1,2)))
-
-NN_for123_fulldataset <- forecast(NN_fit123_fulldataset, h=59,
-                                xreg=fourier(ts_Daily_Electricity[,1], 
-                                          K=c(1,2), h=59))
-
-# Plot forecasting results
-autoplot(NN_for123_fulldataset) +
-  ylab("Total Electricity Demand (MW)") 
-
-# Plot model + observed data
-autoplot(ts_Daily_Electricity[,1]) +
-  autolayer(NN_for123_fulldataset, series="Neural Network Final Forecast", PI=FALSE) +
-  ylab("Total Electricity Demand (MW)") 
-
-# Save forecast values in the data file
-NN_forecast123 <- as.data.frame(NN_for123_fulldataset$mean) %>%
-  rename(load = 1) %>%
-  mutate(date = seq.Date(from = as.Date("2011-01-01"), 
-                         by = "day", 
-                         length.out = 59),
-         load = round(load)) %>%
-  select(date, load)
-
-# Save forecast in the output folder 
-write.csv(NN_forecast123, "Output/NN_forecast123.csv", row.names = FALSE)
-
-```
-
-## Model 5: Neural Network [121]
-
-```{r, echo=FALSE}
-# Fit NN Model
-NN_fit121 <- nnetar(ts_Daily_Electricity_train, p=1, P=0,
-                 xreg=fourier(ts_Daily_Electricity_train, K=c(1,2)))
-
-NN_for121 <- forecast(NN_fit121, h=59, xreg=fourier(ts_Daily_Electricity_train, 
-                                          K=c(1,2), h=59))
-
-# Plot forecasting results
-autoplot(NN_for121) +
-  ylab("Total Electricity Demand (MW)") 
-
-# Plot model + observed data
-autoplot(ts_Daily_Electricity_Feb) +
-  autolayer(NN_for121, series="Neural Network 121", PI=FALSE) +
-  ylab("Total Electricity Demand (MW)") 
-
-# Fit and Forecast the full trained model
-NN_fit121_fulldataset <- nnetar(ts_Daily_Electricity[,1], p=1, P=0,
-                                xreg=fourier(ts_Daily_Electricity[,1], K=c(1,2)))
-
-NN_for121_fulldataset <- forecast(NN_fit121_fulldataset, h=59,
-                                xreg=fourier(ts_Daily_Electricity[,1], 
-                                          K=c(1,2), h=59))
-
-# Plot forecasting results
-autoplot(NN_for121_fulldataset) +
-  ylab("Total Electricity Demand (MW)") 
-
-# Plot model + observed data
-autoplot(ts_Daily_Electricity[,1]) +
-  autolayer(NN_for121_fulldataset, series="Neural Network Final Forecast", PI=FALSE) +
-  ylab("Total Electricity Demand (MW)") 
-
-# Save forecast values in the data file
-NN_forecast121 <- as.data.frame(NN_for121_fulldataset$mean) %>%
-  rename(load = 1) %>%
-  mutate(date = seq.Date(from = as.Date("2011-01-01"), 
-                         by = "day", 
-                         length.out = 59),
-         load = round(load)) %>%
-  select(date, load)
-
-# Save forecast in the output folder 
-write.csv(NN_forecast121, "Output/NN_forecast121.csv", row.names = FALSE)
-
-```
-
-## Model 6: Hourly
-
-```{r, echo=FALSE}
-# Fit NN Model
-NN_fit121_H <- nnetar(ts_Cleaned_HDemand_train, p=24, P=1,
-                 xreg=fourier(ts_Cleaned_HDemand_train, K=c(1,1,1)))
-
-NN_for121_H <- forecast(NN_fit121_H, h=1416, xreg=fourier(ts_Cleaned_HDemand_train, 
+model1_forecast <- forecast(model1_fit, h=1416, xreg=fourier(ts_Hourly_Demand_train, 
                                           K=c(1,1,1), h=1416))
 
-# Plot forecasting results
-autoplot(NN_for121_H) +
-  ylab("Total Electricity Demand (MW)") 
+# Fit and forecast with full data
+model1_fit_full <- nnetar(ts_Hourly_Demand_clean, p=24, P=0,
+                                xreg=fourier(ts_Hourly_Demand_clean, K=c(1,1,1)))
 
-# Plot model + observed data
-autoplot(ts_Cleaned_HDemand_Feb) +
-  autolayer(NN_for121_H, series="Neural Network 121H", PI=FALSE) +
-  ylab("Total Electricity Demand (MW)") 
-
-# Fit and Forecast the full trained model
-NN_fit121_fulldataset_H <- nnetar(Cleaned_HDemand, p=24, P=1,
-                                xreg=fourier(Cleaned_HDemand, K=c(1,1,1)))
-
-NN_for121_fulldataset_H <- forecast(NN_fit121_fulldataset_H, h=1416,
-                                xreg=fourier(Cleaned_HDemand, 
+model1_forecast_full <- forecast(model1_fit_full, h=1416,                     
+                                 xreg=fourier(ts_Hourly_Demand_clean, 
                                           K=c(1,1,1), h=1416))
 
-# Plot forecasting results
-autoplot(NN_for121_fulldataset_H) +
-  ylab("Total Electricity Demand (MW)") 
-
-# Plot model + observed data
-autoplot(Cleaned_HDemand) +
-  autolayer(NN_for121_fulldataset_H, series="Neural Network Final Forecast", PI=FALSE) +
-  ylab("Total Electricity Demand (MW)") 
-
-# Save forecast values in the data file
-NN_forecast121_H <- as.data.frame(NN_for121_fulldataset_H$mean) %>%
+# Save forecast values
+model1 <- as.data.frame(model1_forecast_full$mean) %>%
   rename(load_hourly = 1) %>%
   mutate(datetime = seq.POSIXt(from = as.POSIXct("2011-01-01 00:00:00"),
                                by = "hour", 
@@ -457,12 +229,226 @@ NN_forecast121_H <- as.data.frame(NN_for121_fulldataset_H$mean) %>%
   summarise(load = round(mean(load_hourly)), .groups = "drop") %>%
   select(date, load)
 
-NN_forecast121_H <- NN_forecast121_H[-nrow(NN_forecast121_H), ]
+# Remove last row (value for March 1, 2011)
+model1 <- model1[-nrow(model1), ]
+```
 
-# Save forecast in the output folder 
-write.csv(NN_forecast121_H, "Output/NN_forecast24_1_111_hourly.csv", row.names = FALSE)
+## Model 2: Neural Network with Hourly Data [p=24, P=0, K=c(1,2,1)]
+
+```{r echo=TRUE}
+# Fit NN Model
+model2_fit <- nnetar(ts_Hourly_Demand_train, p=24, P=0,
+                 xreg=fourier(ts_Hourly_Demand_train, K=c(1,2,1)))
+
+model2_forecast <- forecast(model2_fit, h=1416, xreg=fourier(ts_Hourly_Demand_train, 
+                                          K=c(1,2,1), h=1416))
+
+# Fit and forecast with full data
+model2_fit_full <- nnetar(ts_Hourly_Demand_clean, p=24, P=0,
+                                xreg=fourier(ts_Hourly_Demand_clean, K=c(1,2,1)))
+
+model2_forecast_full <- forecast(model2_fit_full, h=1416,                     
+                                 xreg=fourier(ts_Hourly_Demand_clean, 
+                                          K=c(1,2,1), h=1416))
+
+# Save forecast values
+model2 <- as.data.frame(model2_forecast_full$mean) %>%
+  rename(load_hourly = 1) %>%
+  mutate(datetime = seq.POSIXt(from = as.POSIXct("2011-01-01 00:00:00"),
+                               by = "hour", 
+                               length.out = n())) %>%
+  mutate(date = as.Date(datetime)) %>%
+  group_by(date) %>%
+  summarise(load = round(mean(load_hourly)), .groups = "drop") %>%
+  select(date, load)
+
+#remove last row (value for March 1, 2011)
+model2 <- model2[-nrow(model2), ]
+```
+
+## Model 3: Neural Network with Daily Data [p=3, P=0, K=c(2,2)]
+
+```{r echo=TRUE}
+# Fit NN Model
+model3_fit <- nnetar(ts_Daily_Electricity_train, p=3, P=0,
+                 xreg=fourier(ts_Daily_Electricity_train, K=c(2,2)))
+
+model3_forecast <- forecast(model3_fit, h=59, xreg=fourier(ts_Daily_Electricity_train, 
+                                          K=c(2,2), h=59))
+
+# Fit and forecast with full data
+model3_fit_full <- nnetar(ts_Daily_Electricity[,1], p=3, P=0,
+                 xreg=fourier(ts_Daily_Electricity[,1], K=c(2,2)))
+
+model3_forecast_full <- forecast(model3_fit_full, h=59,
+                                xreg=fourier(ts_Daily_Electricity[,1], 
+                                          K=c(2,2), h=59))
+
+# Save forecast values
+model3 <- as.data.frame(model3_forecast_full$mean) %>%
+  rename(load = 1) %>%
+  mutate(date = seq.Date(from = as.Date("2011-01-01"), 
+                         by = "day", 
+                         length.out = 59),
+         load = round(load)) %>%
+  select(date, load)
 
 ```
 
-# Summary of Results
+## Model 4: Neural Network with Daily Data [p=1, P=0, K=c(2,2)]
 
+```{r echo=TRUE}
+# Fit NN Model
+model4_fit <- nnetar(ts_Daily_Electricity_train, p=1, P=0,
+                 xreg=fourier(ts_Daily_Electricity_train, K=c(2,2)))
+
+model4_forecast <- forecast(model4_fit, h=59, xreg=fourier(ts_Daily_Electricity_train, 
+                                          K=c(2,2), h=59))
+
+# Fit and forecast with full data
+model4_fit_full <- nnetar(ts_Daily_Electricity[,1], p=1, P=0,
+                 xreg=fourier(ts_Daily_Electricity[,1], K=c(2,2)))
+
+model4_forecast_full <- forecast(model4_fit_full, h=59,
+                                xreg=fourier(ts_Daily_Electricity[,1], 
+                                          K=c(2,2), h=59))
+
+# Save forecast values
+model4 <- as.data.frame(model4_forecast_full$mean) %>%
+  rename(load = 1) %>%
+  mutate(date = seq.Date(from = as.Date("2011-01-01"), 
+                         by = "day", 
+                         length.out = 59),
+         load = round(load)) %>%
+  select(date, load)
+
+```
+
+## Model 5: Neural Network with Daily Data [p=1, P=0, K=c(1,2)]
+
+```{r echo=TRUE}
+# Fit NN Model
+model5_fit <- nnetar(ts_Daily_Electricity_train, p=1, P=0,
+                 xreg=fourier(ts_Daily_Electricity_train, K=c(1,2)))
+
+model5_forecast <- forecast(model5_fit, h=59, xreg=fourier(ts_Daily_Electricity_train, 
+                                          K=c(1,2), h=59))
+
+# Fit and forecast with full data
+model5_fit_full <- nnetar(ts_Daily_Electricity[,1], p=1, P=0,
+                 xreg=fourier(ts_Daily_Electricity[,1], K=c(1,2)))
+
+model5_forecast_full <- forecast(model5_fit_full, h=59,
+                                xreg=fourier(ts_Daily_Electricity[,1], 
+                                          K=c(1,2), h=59))
+
+# Save forecast values
+model5 <- as.data.frame(model5_forecast_full$mean) %>%
+  rename(load = 1) %>%
+  mutate(date = seq.Date(from = as.Date("2011-01-01"), 
+                         by = "day", 
+                         length.out = 59),
+         load = round(load)) %>%
+  select(date, load) 
+
+```
+
+# Accuracy Results (vs Validation Set)
+
+
+```{r echo=TRUE}
+# Model 1
+model1_scores <- accuracy(model1_forecast$mean, ts_Hourly_Demand_test)  
+
+# Model 2
+model2_scores <- accuracy(model2_forecast$mean, ts_Hourly_Demand_test)
+
+# Model 3 
+model3_scores <- accuracy(model3_forecast$mean, ts_Daily_Electricity_test)
+
+# Model 4
+model4_scores <- accuracy(model4_forecast$mean, ts_Daily_Electricity_test)
+
+# Model 5
+model5_scores <- accuracy(model5_forecast$mean, ts_Daily_Electricity_test)
+
+# Create data frame
+scores <- as.data.frame(
+  rbind(model1_scores, model2_scores, model3_scores, model4_scores, model5_scores)
+  )
+row.names(scores) <- c("Model 1", "Model 2","Model 3","Model 4", "Model 5")
+
+```
+```{r echo=FALSE}
+# Construct table
+kbl(scores, 
+      caption = "Forecast Accuracy for Load Using Validation Data Set",
+      digits = array(5,ncol(scores))) %>%
+  kable_styling(full_width = FALSE, position = "center", latex_options = "hold_position") %>%
+  kable_styling(latex_options="striped")
+```
+
+\newpage
+# Model Comparisons (Plots)
+
+## Training and Validation Sets
+
+```{r, echo=FALSE}
+autoplot(ts_Daily_Electricity_test) +
+  ggtitle("Model Comparisons using Daily Data") +
+  #autolayer(model1_forecast, PI=FALSE, series="Model 1") +
+  #autolayer(model2_forecast, PI=FALSE, series="Model 2") +
+  autolayer(model3_forecast, PI=FALSE, series="Model 3") +
+  autolayer(model4_forecast, PI=FALSE, series="Model 4") +
+  autolayer(model5_forecast, PI=FALSE, series="Model 5") +
+  ylab("Demand (MW)") +
+  guides(colour=guide_legend(title="Forecast"))
+
+autoplot(ts_Hourly_Demand_test) +
+  ggtitle("Model Comparisons using Hourly Data") +
+  autolayer(model1_forecast, PI=FALSE, series="Model 1") +
+  autolayer(model2_forecast, PI=FALSE, series="Model 2") +
+  #autolayer(model3_forecast, PI=FALSE, series="Model 3") +
+  #autolayer(model4_forecast, PI=FALSE, series="Model 4") +
+  #autolayer(model5_forecast, PI=FALSE, series="Model 5") +
+  ylab("Demand (MW)") +
+  guides(colour=guide_legend(title="Forecast"))
+
+```
+
+## 2011 Forecasts with Full Data Set
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ts_model1 <- ts(model1$load, start = c(2011, 1), frequency = 365)
+ts_model2 <- ts(model2$load, start = c(2011,1), frequency = 365)
+
+autoplot(ts_Daily_Electricity[,1]) +
+  autolayer(ts_model1, PI=FALSE, series="Model 1") +
+  autolayer(ts_model2, PI=FALSE, series="Model 2") +
+  autolayer(model3_forecast_full, PI=FALSE, series="Model 3") +
+  autolayer(model4_forecast_full, PI=FALSE, series="Model 4") +
+  autolayer(model5_forecast_full, PI=FALSE, series="Model 5") +
+  guides(colour=guide_legend(title="Forecast")) +
+  labs(
+    title = "Forecasts for January and February 2011 using Daily Data",
+    subtitle = "(After Finding Daily Averages for Hourly Forecasts)",
+    x = "Time",
+    y = "Demand (MW)"
+  )
+
+autoplot(ts_Daily_Electricity[,1]) +
+  autolayer(ts_model1, PI=FALSE, series="Model 1") +
+  autolayer(ts_model2, PI=FALSE, series="Model 2") +
+  autolayer(model3_forecast_full, PI=FALSE, series="Model 3") +
+  autolayer(model4_forecast_full, PI=FALSE, series="Model 4") +
+  autolayer(model5_forecast_full, PI=FALSE, series="Model 5") +
+  guides(colour=guide_legend(title="Forecast")) +
+  labs(
+    title = "Forecasts for January and February 2011 using Daily Data",
+    subtitle = "(After Finding Daily Averages for Hourly Forecasts)",
+    x = "Time",
+    y = "Demand (MW)"
+  ) +
+  xlim(c(2011 + 0/365, 2011 + 58/365))
+
+```
