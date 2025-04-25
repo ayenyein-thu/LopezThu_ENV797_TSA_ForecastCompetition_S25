@@ -30,6 +30,22 @@ library(tidyverse)
 library(smooth)
 library(kableExtra)
 library(car)
+library(ggthemes)
+```
+
+```{r include=FALSE}
+# Set theme
+theme_set(
+  theme_hc() +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 12),
+    plot.subtitle = element_text(hjust = 0.5, size = 10, face = "plain"),
+    axis.title.x = element_text(size = 10),
+    axis.title.y = element_text(size = 10),
+    legend.title = element_text(face = "bold", size = 10),
+    legend.text = element_text(size = 9)
+  ) 
+)
 ```
 
 \newpage
@@ -85,6 +101,7 @@ Daily_Humidity  <- Hourly_Humidity %>%
 
 ```
 
+\newpage
 ## Temperature
 
 ```{r echo=TRUE}
@@ -353,8 +370,8 @@ model5 <- as.data.frame(model5_forecast_full$mean) %>%
 
 ```
 
+\newpage
 # Accuracy Results (vs Validation Set)
-
 
 ```{r echo=TRUE}
 # Model 1
@@ -393,7 +410,7 @@ kbl(scores,
 
 ## Training and Validation Sets
 
-```{r, echo=FALSE}
+```{r, echo=FALSE, fig.height=6, fig.width=10, message=FALSE, warning=FALSE}
 autoplot(ts_Daily_Electricity_test) +
   ggtitle("Model Comparisons using Daily Data") +
   #autolayer(model1_forecast, PI=FALSE, series="Model 1") +
@@ -404,6 +421,10 @@ autoplot(ts_Daily_Electricity_test) +
   ylab("Demand (MW)") +
   guides(colour=guide_legend(title="Forecast"))
 
+```
+
+
+```{r, echo=FALSE, fig.height=6, fig.width=10, message=FALSE, warning=FALSE}
 autoplot(ts_Hourly_Demand_test) +
   ggtitle("Model Comparisons using Hourly Data") +
   autolayer(model1_forecast, PI=FALSE, series="Model 1") +
@@ -418,7 +439,7 @@ autoplot(ts_Hourly_Demand_test) +
 
 ## 2011 Forecasts with Full Data Set
 
-```{r echo=FALSE, message=FALSE, warning=FALSE}
+```{r, fig.height=6, fig.width=10, echo=FALSE, message=FALSE, warning=FALSE}
 ts_model1 <- ts(model1$load, start = c(2011, 1), frequency = 365)
 ts_model2 <- ts(model2$load, start = c(2011,1), frequency = 365)
 
@@ -436,6 +457,9 @@ autoplot(ts_Daily_Electricity[,1]) +
     y = "Demand (MW)"
   )
 
+```
+
+```{r, fig.height=6, fig.width=10, echo=FALSE, message=FALSE, warning=FALSE}
 autoplot(ts_Daily_Electricity[,1]) +
   autolayer(ts_model1, PI=FALSE, series="Model 1") +
   autolayer(ts_model2, PI=FALSE, series="Model 2") +
